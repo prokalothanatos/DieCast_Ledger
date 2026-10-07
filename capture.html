@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script src="demo-shim.js"></script>
+<title>New car or box set - DieCast Ledger</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="icon-192.png">
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --ink:#1c2230; --mute:#667085; --line:#dfe3ea; --blue:#1f6feb; --green:#1a7f37; --accent:#c8102e; --grnbg:#e8f6ec; --bluebg:#e8f0fe; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151b; --card:#1b2029; --ink:#e8ecf3; --mute:#98a2b3; --line:#2b3240; --blue:#5b9dff; --green:#4cc36f; --accent:#ff4d5e; --grnbg:#173323; --bluebg:#172640; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.5 "Segoe UI",system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width:980px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { margin:0 0 4px; font-size:clamp(24px,4.5vw,32px); } h2 { margin:28px 0 10px; font-size:19px; }
+  .sub { color:var(--mute); margin:0 0 18px; }
+  .nav a { color:var(--blue); margin-right:14px; }
+  ol.steps { padding-left:22px; } ol.steps li { margin:8px 0; } ol.steps b { color:var(--ink); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; margin:14px 0; }
+  .photos { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:10px; }
+  .photos figure { margin:0; } .photos img { width:100%; aspect-ratio:3/4; object-fit:contain; background:#111; border-radius:10px; border:1px solid var(--line); }
+  .photos figcaption { font-size:13px; color:var(--mute); text-align:center; margin-top:3px; }
+  .notes { background:var(--grnbg); color:var(--green); border-radius:10px; padding:12px 16px; font-size:14.5px; }
+  .notes ul { margin:6px 0 0; padding-left:20px; } .notes li { margin:3px 0; overflow-wrap:anywhere; }
+  .cars { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
+  a.car { display:block; text-decoration:none; color:inherit; border:1px solid var(--line); border-radius:12px; padding:12px 14px; background:var(--card); }
+  a.car:hover { border-color:var(--accent); } a.car b { display:block; } a.car span { color:var(--mute); font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+  <p class="nav"><a href="index.html">&larr; Home</a><a href="sheet.html">Garage</a></p>
+  <h1>New car or box set</h1>
+  <p class="sub">This is where a car is added in the real app. It needs a phone camera and the PC, so here is the flow and what it produced for the sample box set.</p>
+  <ol class="steps">
+    <li><b>Photograph it.</b> A carded car or loose car takes two photos; a box set takes six (front, back, top, bottom, left side, right side). The app crops and straightens each one.</li>
+    <li><b>Research runs by itself.</b> Google Lens identifies the car, the Hot Wheels Wiki gives the casting, year and series, sold eBay listings give the price and the wording sellers use, and the UPC is read from the box bottom.</li>
+    <li><b>Review.</b> The eBay-style page shows every field, with dropdowns that match eBay's own lists. Blank required fields are marked red.</li>
+    <li><b>One click</b> saves the row in the Garage and builds an eBay <i>draft</i>. You publish it yourself.</li>
+  </ol>
+  <h2>The sample box set: Hot Wheels 1995 Race Team 5 Car Gift Pack</h2>
+  <div class="card"><div class="photos" id="photos"></div></div>
+  <div class="notes" id="notes"></div>
+  <h2>See the results</h2>
+  <div class="cars" id="cars"></div>
+</main>
+<script>
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+fetch('/api/car?row=' + ((window.DEMO_BOX_ROW) || '')).catch(() => {});
+fetch('data/demo.json').then(r => r.json()).then(D => {
+  const box = Object.entries(D.cars).find(([, c]) => (c.shots || []).length);
+  if (box) {
+    $('#photos').innerHTML = box[1].shots.map(s => `<figure><img src="data/photos/${esc(s.prev)}" alt="${esc(s.side)}"><figcaption>${esc(s.side)}</figcaption></figure>`).join('');
+    $('#notes').innerHTML = '<b>What research found and where it came from</b><ul>' + (box[1].research || []).map(x => `<li>${esc(x)}</li>`).join('') + '</ul>';
+  }
+  $('#cars').innerHTML = Object.entries(D.cars).map(([row, c]) => {
+    const v = c.values, k = D.kinds[row];
+    return `<a class="car" href="car.html?row=${row}"><b>${esc(v.Model)}</b><span>${k === 'box' ? 'Box set' : k === 'loose' ? 'Loose car, listed on eBay' : 'Carded car'} &middot; Item ID ${esc(v['Item ID'])}</span><span><br>Open the eBay-style page &rarr;</span></a>`;
+  }).join('');
+});
+function $(s) { return document.querySelector(s); }
+</script>
+</body>
+</html>

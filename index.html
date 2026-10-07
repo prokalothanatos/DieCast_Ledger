@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script src="demo-shim.js"></script>
+<title>DieCast Ledger</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#c8102e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DieCast Ledger">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --ink:#1c2230; --mute:#667085; --line:#dfe3ea; --blue:#1f6feb; --green:#1a7f37;
+          --amber:#b26a00; --red:#c62828; --redbg:#fdecec; --grnbg:#e8f6ec; --ambbg:#fff4e0; --accent:#c8102e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151b; --card:#1b2029; --ink:#e8ecf3; --mute:#98a2b3; --line:#2b3240; --blue:#5b9dff; --green:#4cc36f;
+            --amber:#f0a840; --red:#ff7b72; --redbg:#3b1d1d; --grnbg:#173323; --ambbg:#3a2c12; --accent:#ff4d5e; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.45 "Segoe UI",system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width:880px; margin:0 auto; padding:clamp(20px,6vw,56px) 16px 40px; }
+  .logo { display:block; width:100%; max-width:100%; height:auto; aspect-ratio:1376 / 768; object-fit:cover; border-radius:16px; margin:0 0 22px;
+          box-shadow:0 6px 22px rgba(0,0,0,.28); }
+  h1 { margin:0 0 4px; font-size:clamp(26px,5vw,36px); letter-spacing:-.01em; }
+  .sub { color:var(--mute); margin:0 0 28px; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; }
+  a.tile { display:flex; flex-direction:column; gap:6px; padding:22px 20px; background:var(--card); border:1px solid var(--line);
+           border-radius:14px; color:inherit; text-decoration:none; min-height:150px; transition:transform .08s, border-color .08s; }
+  a.tile:hover, a.tile:focus-visible { transform:translateY(-2px); border-color:var(--accent); outline:none; }
+  a.tile.main { border-color:var(--accent); border-width:2px; }
+  .tile .ico { font-size:30px; line-height:1; }
+  .tile b { font-size:20px; }
+  .tile span { color:var(--mute); font-size:14px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:30px; }
+  .chip { padding:5px 12px; border-radius:99px; font-size:13px; border:1px solid var(--line); background:var(--card); color:var(--mute); }
+  .chip.on { background:var(--grnbg); color:var(--green); border-color:transparent; }
+  .chip.off { background:var(--redbg); color:var(--red); border-color:transparent; }
+  .foot { margin-top:26px; font-size:13px; color:var(--mute); }
+  .foot a { color:var(--mute); }
+</style>
+</head>
+<body>
+<main>
+  <img class="logo" src="jakes-logo.jpg" alt="Jake's Collectibles" onerror="this.remove()">
+  <h1>DieCast Ledger</h1>
+  <p class="sub">Photograph a die-cast car or box set, let research fill in the details, review it, and the listing is drafted for you.</p>
+  <nav class="tiles">
+    <a class="tile main" href="capture.html"><div class="ico">&#128247;</div><b>New car or box set</b>
+      <span>Take the photos, run research, review and create the eBay draft.</span></a>
+    <a class="tile" href="sheet.html"><div class="ico">&#128663;</div><b>Garage</b>
+      <span>Every car you own: photos, values, status. Search and filter.</span></a>
+    <a class="tile" href="admin.html"><div class="ico">&#9881;</div><b>Admin</b>
+      <span>Status of everything, backups, restart.</span></a>
+  </nav>
+  <div class="chips" id="chips"><span class="chip">checking...</span></div>
+  <p class="foot"><span id="where"></span></p>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const LOCAL = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function chip(cls, text) { return `<span class="chip ${cls}">${esc(text)}</span>`; }
+async function refresh() {
+  try {
+    const A = await (await fetch('/api/admin_status')).json();
+    const c = [];
+    c.push(chip('on', 'Dashboard running ' + (A.uptime < 3600 ? Math.max(1, Math.round(A.uptime / 60)) + ' min' : Math.round(A.uptime / 3600) + ' h')));
+    const live = (A.network.devices || []).filter(d => d.ago <= 15);
+    if (A.usb.connected) c.push(chip('on', 'Phone (USB) connected'));
+    if (live.length) c.push(chip('on', live[0].device + ' on Wi-Fi: active'));
+    if (!A.usb.connected && !live.length) c.push(chip('', 'No phone connected'));
+    const g = A.google; c.push(chip(g.ok ? 'on' : g.ok === false ? 'off' : '', g.ok ? 'Google connected' : g.ok === false ? 'Google: needs attention' : 'Google: not set up'));
+    const e = A.ebay; c.push(chip(e.ok === false ? 'off' : e.ok ? 'on' : '', e.ok === false ? 'eBay: needs sign-in' : e.ok ? 'eBay working' : 'eBay: not used yet'));
+    const lb = A.last_backup; c.push(chip(lb && lb.ok ? 'on' : '', lb ? 'Last backup ' + (lb.when || '').slice(0, 10) + (lb.ok ? '' : ' (failed)') : 'No backup yet'));
+    $('#chips').innerHTML = c.join('');
+    $('#where').innerHTML = A.network.url ? 'On a phone on the same Wi-Fi, open <b>' + esc(A.network.url) + '</b>' : '';
+  } catch (err) { $('#chips').innerHTML = chip('off', 'Dashboard not reachable'); }
+}
+refresh(); setInterval(refresh, 8000);
+</script>
+</body>
+</html>

@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script src="demo-shim.js"></script>
+<title>Car - DieCast Ledger</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="ebay.css">
+<script src="ebay.js" defer></script>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --ink:#1c2230; --mute:#667085; --line:#dfe3ea; --blue:#1f6feb; --green:#1a7f37;
+          --amber:#b26a00; --red:#c62828; --ambbg:#fff4e0; --redbg:#fdecec; --grnbg:#e8f6ec; --bluebg:#e8f0fe; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151b; --card:#1b2029; --ink:#e8ecf3; --mute:#98a2b3; --line:#2b3240; --blue:#5b9dff; --green:#4cc36f;
+            --amber:#f0a840; --red:#ff7b72; --ambbg:#3a2c12; --redbg:#3b1d1d; --grnbg:#173323; --bluebg:#172640; } }
+  * { box-sizing:border-box; } [hidden] { display:none !important; }
+  body { margin:0; font:15px/1.45 "Segoe UI",system-ui,sans-serif; background:var(--card); color:var(--ink); }
+  header { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
+  header h1 { font-size:17px; margin:0; flex:1; min-width:160px; overflow-wrap:anywhere; }
+  .btn, button { font:inherit; padding:7px 13px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; text-decoration:none; display:inline-block; }
+  button.primary { background:var(--blue); border-color:var(--blue); color:#fff; font-weight:600; }
+  button.danger { background:var(--red); border-color:var(--red); color:#fff; font-weight:600; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  main { padding:0 16px 80px; }
+  #msg { margin:10px 0; padding:10px 14px; border-radius:8px; display:none; } #msg.ok { background:var(--grnbg); color:var(--green); display:block; } #msg.err { background:var(--redbg); color:var(--red); display:block; }
+  .pend { margin:0 0 10px; padding:9px 14px; border-radius:10px; background:var(--ambbg); color:var(--amber); font-size:14px; }
+  #bar { position:fixed; left:0; right:0; bottom:0; z-index:6; display:none; gap:12px; align-items:center; justify-content:center; padding:10px 16px; background:var(--card); border-top:1px solid var(--line); box-shadow:0 -4px 14px rgba(0,0,0,.12); }
+  #bar.on { display:flex; }
+  dialog { border:1px solid var(--line); border-radius:14px; background:var(--card); color:var(--ink); width:min(560px,94vw); padding:20px; }
+  dialog::backdrop { background:rgba(0,0,0,.5); }
+  .live { display:flex; gap:12px; align-items:flex-start; padding:12px; border-radius:10px; background:var(--bg); margin:12px 0; } .live b { font-size:16px; }
+  .chg { background:var(--ambbg) !important; }
+  .eb-ro-note { font-size:12px; color:var(--mute); }
+  a.btn.eb-pa { font-size:12px; padding:1px 7px; border-radius:6px; line-height:1.5; } a.btn.eb-pa.warn { color:var(--red); }
+  .chk { padding:10px 12px; border-radius:8px; font-size:14px; } .chk.good { background:var(--grnbg); color:var(--green); } .chk ul { margin:4px 0 0; padding-left:20px; }
+</style>
+</head>
+<body>
+<header><a class="btn" href="sheet.html">&larr; Garage</a><a class="btn" href="capture.html" title="The dashboard is for new cars and box sets">New car dashboard</a>
+  <h1 id="hTitle">Loading...</h1><button id="rerunBtn" hidden title="Looks the car up again (Lens, sold comps, UPC) and fills only fields that are still empty">Re-run research</button><a class="btn" id="aOpen" hidden>Open in the dashboard</a><a class="btn" id="aSheet" hidden target="_blank" rel="noopener">Row in Google Sheets</a></header>
+<main><div id="msg"></div><div class="eb" id="eb">Loading...</div></main>
+<div id="bar"><span id="barTxt"></span><button id="bSave" class="primary">Save changes</button><button id="bDiscard">Discard</button></div>
+<dialog id="endDlg"><div id="endBody"></div></dialog>
+<dialog id="applyDlg"><div id="applyBody"></div></dialog>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LOCAL = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
+const ROW = new URLSearchParams(location.search).get('row');
+const COND_LINE = 'Please see all photos for the exact condition of the item.';
+let C = null, P = null, EDIT = false, EBAY = {fields: {}};
+fetch('/api/ebay_options').then(r => r.json()).then(j => { if (j && j.fields) { EBAY = j; if (C) draw(); } }).catch(() => {});
+
+// ---------------------------------------------------------------- helpers
+const nz = s => String(s ?? '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '');
+const STRICT = new Set(['Brand', 'Vehicle Make', 'Vehicle Type', 'Scale', 'Material', 'Color', 'Vehicle Year', 'Year of Manufacture', 'Country of Origin', 'Vintage']);
+function ebAlign(label, v) {
+  v = String(v ?? '').trim(); const f = (EBAY.fields || {})[label], opts = f ? f.options || [] : [];
+  if (!v || !opts.length || opts.includes(v)) return {st: v ? 'ok' : 'blank'};
+  const same = opts.find(o => nz(o) === nz(v)); if (same) return {st: 'snap', to: same};
+  if (!STRICT.has(label) || !f.complete) return {st: 'unknown'};
+  const x = nz(v), near = opts.find(o => x.length > 2 && (nz(o).includes(x) || x.includes(nz(o))) && nz(o).length > 1);
+  return near ? {st: 'close', to: near} : {st: 'custom'};
+}
+function sheetDate(s) {
+  s = String(s || '').trim();
+  if (/^\d{5}(\.\d+)?$/.test(s)) return new Date(Date.UTC(1899, 11, 30) + Math.round(parseFloat(s) * 86400000)).toISOString().slice(0, 10);
+  return s;
+}
+function statusOf(v) {
+  const st = String(v['eBay Status'] || '').trim(), sold = String(v['eBay-Date Sold'] || '').trim(), listed = String(v['eBay-Date Listed'] || '').trim();
+  if (/^inactive/i.test(st)) return 'Inactive';
+  if (sold || /\bsold\b/i.test(v.Model || '')) return 'Sold';
+  if (/^draft$/i.test(listed)) return 'Draft';
+  if (!listed || /^not listed$/i.test(listed)) return 'Not listed';
+  return 'Listed';
+}
+const paras = t => String(t || '').split(/\n\s*\n/).map(x => x.trim()).filter(Boolean);
+const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);
+function setPath(o, p, v) { const ks = p.split('.'); let a = o; ks.slice(0, -1).forEach(k => { a[k] = a[k] || {}; a = a[k]; }); a[ks[ks.length - 1]] = v; }
+const dig = s => { const v = parseFloat(String(s).replace(/[^0-9.\-]/g, '')); return isNaN(v) ? null : v; };
+
+// ---------------------------------------------------------------- the fields: where each one lives
+// sheet = Garage column(s); spec = path(s) in the listing's own settings; opts = eBay's list for the type-to-search box
+const F = [
+  {id: 'title', label: 'Item title (from the database)', sheet: ['eBay Title'], spec: [], show: ['title'], kind: 'text', wide: true, card: 'title'},
+  {id: 'brand', label: 'Brand', sheet: ['Brand'], spec: ['specifics.Brand'], opts: 'Brand', card: 'ess'},
+  {id: 'make', label: 'Vehicle Make', spec: ['specifics.Vehicle Make'], opts: 'Vehicle Make', card: 'ess'},
+  {id: 'vtype', label: 'Vehicle Type', spec: ['specifics.Vehicle Type'], opts: 'Vehicle Type', card: 'ess'},
+  {id: 'emodel', label: 'Model', spec: ['specifics.Model'], opts: 'Model', card: 'ess', dflt: v => v.Series || v.Model},
+  {id: 'scale', label: 'Scale', sheet: ['Scale'], spec: ['specifics.Scale'], opts: 'Scale', card: 'ess'},
+  {id: 'material', label: 'Material', spec: ['specifics.Material'], opts: 'Material', card: 'ess'},
+  {id: 'color', label: 'Color', sheet: ['Color'], spec: ['specifics.Color'], opts: 'Color', card: 'ess'},
+  {id: 'series', label: 'Series', sheet: ['Series'], spec: ['specifics.Series'], opts: 'Series', card: 'ess'},
+  {id: 'year', label: 'Vehicle Year / Year of Manufacture', sheet: ['Year'], spec: ['specifics.Vehicle Year', 'specifics.Year of Manufacture'], opts: 'Vehicle Year', card: 'ess'},
+  {id: 'theme', label: 'Theme', spec: ['specifics.Theme'], opts: 'Theme', card: 'opt'},
+  {id: 'country', label: 'Country of Origin', sheet: ['Country'], spec: ['specifics.Country of Origin'], opts: 'Country of Origin', card: 'opt'},
+  {id: 'mpn', label: 'MPN (toy number)', sheet: ['Toy Number'], spec: ['specifics.MPN'], card: 'opt'},
+  {id: 'upc', label: 'UPC', sheet: ['UPC/Barcode'], spec: ['upc'], card: 'opt'},
+  {id: 'vintage', label: 'Vintage', spec: ['specifics.Vintage'], opts: 'Vintage', card: 'opt'},
+  {id: 'econd', label: 'Item condition', spec: ['ebay_condition'], kind: 'select', choices: ['New', 'Used'], card: 'cond', dflt: v => (/^loose$/i.test(v.Condition || '') ? 'Used' : 'New')},
+  {id: 'gcond', label: 'Garage condition (our record, not sent to eBay)', sheet: ['Condition'], card: 'out'},
+  {id: 'cdesc', label: 'Condition description (Used only)', spec: ['condition_desc'], kind: 'area', wide: true, card: 'cond'},
+  {id: 'desc', label: 'Description', kind: 'desc', wide: true, card: 'cond'},
+  {id: 'price', label: 'Item price', sheet: ['eBay-List Price'], spec: ['price'], kind: 'money', card: 'price'},
+  {id: 'offers', label: 'Allow offers', spec: ['offers'], kind: 'bool', card: 'price'},
+  {id: 'accept', label: 'Auto-accept at', spec: ['accept'], kind: 'money', card: 'price'},
+  {id: 'lb', label: 'Weight lb', spec: ['ship.lb'], card: 'ship'}, {id: 'oz', label: 'oz', spec: ['ship.oz'], card: 'ship'},
+  {id: 'sl', label: 'Length in', spec: ['ship.l'], card: 'ship'}, {id: 'sw', label: 'Width in', spec: ['ship.w'], card: 'ship'}, {id: 'sh', label: 'Height in', spec: ['ship.h'], card: 'ship'},
+];
+const OUT_EDIT = ['Model', 'Collector Number', 'Series Number', 'Rarity', 'Wheel Type', 'Storage Location', 'Purchase Price (USD)', 'Purchase Date', 'Purchased From',
+                  'Estimated Value (USD)', 'Market Value', 'Highest Sold Price', 'Est. Shipping Cost', 'Needs Review', 'Comps'];
+const USED_BY_FIELDS = new Set(F.flatMap(f => f.sheet || []).concat(['Notes', 'Photo (Front)', 'Photo (Back)']));
+let FIELDS = {};                                               // id -> current value (shown or being edited)
+let ORIG = {};
+
+function specOf() { return (C.saved && C.saved.spec) || null; }
+function shown(f) {                                            // what the page shows now for a field: the listing setting if we have one, else the Garage value
+  const V = C.values, S = specOf();
+  if (f.kind === 'desc') return (S ? paras(S.desc_text).filter(p => p !== COND_LINE) : paras(V.Notes)).join('\n\n');
+  for (const p of f.spec || []) { const x = S ? getPath(S, p) : undefined; if (x !== undefined && x !== null && String(x) !== '') return f.kind === 'bool' ? !!x : String(x); }
+  if (f.kind === 'bool') return S ? !!S.offers : false;
+  for (const h of f.sheet || []) if (String(V[h] || '').trim()) return String(V[h]);
+  for (const p of f.show || []) { const x = S ? getPath(S, p) : undefined; if (x) return String(x); }      // display-only fallback (e.g. the title as eBay shows it)
+  return f.dflt ? f.dflt(V) : '';
+}
+function initFields() { CONDCUSTOM = false; FIELDS = {}; F.forEach(f => FIELDS[f.id] = shown(f)); ORIG = JSON.parse(JSON.stringify(FIELDS)); OUTV = {}; OUT_EDIT.forEach(h => OUTV[h] = String(C.values[h] || '')); OUT0 = {...OUTV}; }
+let OUTV = {}, OUT0 = {};
+
+// ---------------------------------------------------------------- drawing
+// fields that must not stay blank (the dashboard marks them red too); a box set holds several colors, so no single Color is required
+const isBox = () => /gift pack|\d[- ]?(car|pack)\b|box set/i.test(String(FIELDS.title || '') + ' ' + String((C && C.values && C.values.Model) || ''));
+const needId = id => ['title', 'brand', 'emodel', 'series', 'year', 'country', 'price'].includes(id) || (id === 'color' && !isBox());
+const isBlank = v => !String(v ?? '').trim();
+function ctl(f) {
+  const v = FIELDS[f.id], id = `data-f="${f.id}"`, need = needId(f.id) && isBlank(v), nattr = needId(f.id) ? 'data-need="1"' : '';
+  if (!EDIT) {
+    if (f.kind === 'bool') return `<span class="eb-ro">${v ? 'On' : 'Off'}</span>`;
+    if (f.kind === 'desc') return `<div class="prevbox">${paras(v).map(p => `<p>${esc(p)}</p>`).join('') || '<span class="eb-note">no description stored</span>'}</div>`;
+    return `<span class="eb-ro${need ? ' need' : ''}">${String(v ?? '').trim() ? esc(f.kind === 'money' && v ? '$' + v : v) : '<span class="eb-note">not set</span>'}</span>`;
+  }
+  if (f.kind === 'select') return `<select class="eb-in" ${id}>${f.choices.map(c => `<option ${c === v ? 'selected' : ''}>${c}</option>`).join('')}</select>`;
+  if (f.kind === 'bool') return `<label class="eb-sw"><input type="checkbox" ${id} ${v ? 'checked' : ''}><i></i></label>`;
+  if (f.kind === 'area' || f.kind === 'desc') return `<textarea class="eb-in" ${id} rows="${f.kind === 'desc' ? 7 : 2}" ${f.id === 'cdesc' && FIELDS.econd === 'New' ? 'placeholder="eBay shows this box for Used items only"' : ''}>${esc(v)}</textarea>`;
+  const opts = f.opts ? (EBAY.fields[f.opts] || {}).options || [] : [], lid = 'dl-' + f.id;
+  const a = f.opts ? ebAlign(f.opts, v) : {st: 'free'};
+  const tag = a.st === 'close' ? `<div class="eb-tag warn">Not on eBay's list. Closest: <b>${esc(a.to)}</b> <button type="button" data-use="${f.id}" data-v="${esc(a.to)}">Use it</button></div>`
+    : a.st === 'custom' ? `<div class="eb-tag warn">Not on eBay's list: it will be added as a custom value.</div>` : '';
+  return `<input class="eb-in${need ? ' need' : ''}" ${nattr} ${id}${opts.length ? `list="${lid}"` : ''} value="${esc(v)}" autocomplete="off" ${opts.length ? 'placeholder="Type to search eBay\'s list"' : ''}>
+    ${opts.length ? `<datalist id="${lid}">${opts.map(o => `<option value="${esc(o)}"></option>`).join('')}</datalist>` : ''}${tag}`;
+}
+// the condition wording the listing really uses: the "Card/Box/Car condition: ..." paragraph of the description (the dashboard's default wording unless you chose otherwise)
+// Same dropdown as the dashboard: Default wording / "no visible wear" wording / Custom. A loose (Used) car's wording goes in eBay's condition description box;
+// a card's or box's goes in the description as "Card condition: ..." / "Box condition: ...".
+let CONDCUSTOM = false, PV = 0;                            // PV: bumped after a photo is turned, so the new picture is fetched
+const cNorm = s => String(s || '').toLowerCase().replace(/[.\s]+$/g, '').replace(/\s+/g, ' ').trim();
+function condInfo() {
+  const k = FIELDS.econd === 'Used' ? 'loose' : isBox() ? 'box' : 'card', c = ((C && C.cond) || {})[k] || {};
+  return {k, label: c.label || 'Condition', def: c.default || '', none: c.none || ''};
+}
+function condCurrent(i) {
+  if (i.k === 'loose') return String(FIELDS.cdesc || '').trim();
+  const p = paras(FIELDS.desc).find(x => x.toLowerCase().startsWith(i.label.toLowerCase() + ':'));
+  return p ? p.replace(/^[^:]*:\s*/, '').trim() : '';
+}
+function condSet(i, text) {
+  text = String(text || '').trim();
+  if (i.k === 'loose') { FIELDS.cdesc = text; return; }
+  const ps = paras(FIELDS.desc).filter(x => !x.toLowerCase().startsWith(i.label.toLowerCase() + ':'));
+  if (text) ps.push(`${i.label}: ${text.replace(/\.+$/, '')}.`);
+  FIELDS.desc = ps.join('\n\n');
+}
+function condWording() {
+  const i = condInfo(), cur = condCurrent(i), n = cNorm(cur);
+  const ch = CONDCUSTOM ? 'custom' : !n ? '' : n === cNorm(i.def) ? 'default' : n === cNorm(i.none) ? 'none' : 'custom';
+  const name = {default: 'Default wording', none: i.none, custom: 'Custom', '': 'not set'}[ch];
+  if (!EDIT) return `<div class="f wide"><label>${esc(i.label)}${i.k === 'loose' ? ' (eBay\'s condition description box)' : ' (goes in the description)'}</label><span class="eb-ro">${cur ? `${esc(cur)} <span class="eb-note">(${esc(name)})</span>` : '<span class="eb-note">not set</span>'}</span></div>`;
+  const need = ch === '';
+  return `<div class="f wide"><label>${esc(i.label)}${i.k === 'loose' ? ' (eBay\'s condition description box)' : ' (goes in the description)'}${need ? ' <b class="eb-needtxt" style="display:inline">(choose one)</b>' : ''}</label>
+    <select class="eb-in${need ? ' pick' : ''}" id="condSel" style="margin-bottom:6px"><option value="" ${ch === '' ? 'selected' : ''}>Choose...</option>
+      <option value="default" ${ch === 'default' ? 'selected' : ''}>Default wording</option><option value="none" ${ch === 'none' ? 'selected' : ''}>${esc(i.none)}</option>
+      <option value="custom" ${ch === 'custom' ? 'selected' : ''}>Custom (type it below)</option></select>
+    <textarea class="eb-in" id="condTxt" rows="2" maxlength="1000" ${ch === 'custom' ? '' : 'readonly'} placeholder="${ch === 'custom' ? 'Type the wording' : 'Choose an option above'}" style="${ch === 'custom' ? '' : 'opacity:.8'}">${esc(cur)}</textarea></div>`;
+}
+const fld = id => { const f = F.find(x => x.id === id), c = ctl(f); return `<div class="f${f.wide ? ' wide' : ''}"><label>${esc(f.label)}${needId(id) ? ` <b class="eb-needtxt"${!EDIT && isBlank(FIELDS[id]) ? ' style="display:inline"' : ''}>(fill in)</b>` : ''}</label>${c}</div>`; };
+const ro = (label, v, wide) => `<div class="f${wide ? ' wide' : ''}"><label>${esc(label)}</label><span class="eb-ro">${String(v ?? '').trim() ? esc(v) : '<span class="eb-note">not set</span>'}</span></div>`;
+const locked = label => `<div class="f"><label>${esc(label)}</label><span class="eb-ro"><span class="eb-note">never filled</span></span></div>`;
+
+function draw() {
+  const V = C.values, S = specOf(), st = statusOf(V), ln = String(V['Listing Number'] || '').replace(/\D/g, '');
+  $('#hTitle').textContent = `Row ${C.row}: ${V.Model || '(no model)'}`;
+  $('#aSheet').href = C.sheet_url; document.title = `${V.Model || 'Car'} - DieCast Ledger`;
+  const ob = $('#aOpen'); if (C.saved && C.saved.batch) { ob.hidden = false; ob.href = '/dashboard?batch=' + encodeURIComponent(C.saved.batch); } else ob.hidden = true;
+  const rr = $('#rerunBtn'); rr.hidden = !(C.saved && C.saved.batch && C.saved.car); rr.onclick = rerunResearch;
+  const pic = (id, side) => id ? `<a class="eb-ph" href="/sheet_img?id=${esc(id)}&s=full" target="_blank" title="${side}: open full size"><img src="/sheet_img?id=${esc(id)}" alt="${side}"><span class="eb-badge">${side}</span></a>` : `<span class="eb-ph empty" title="no ${side.toLowerCase()} photo"></span>`;
+  const canEnd = st === 'Listed' && /^\d{12}$/.test(ln);
+  const pend = (C.pending || []).filter(p => p);
+  const status = `<div class="eb-status"><span class="st ${st.replace(/\s/g, '')}">${st}</span>
+      ${ln ? `<span>eBay listing <a href="https://www.ebay.com/itm/${ln}" target="_blank" rel="noopener">${ln}</a></span>` : '<span class="eb-note">no eBay listing number on this row</span>'}
+      ${V['eBay-Date Listed'] && st !== 'Not listed' ? `<span class="eb-note">listed ${esc(sheetDate(V['eBay-Date Listed']))}</span>` : ''}
+      ${V['eBay Status'] ? `<span class="eb-note">${esc(V['eBay Status'])}</span>` : ''}
+      <span style="flex:1"></span>
+      ${EDIT ? '<span class="eb-note">Editing: change the fields, then Save at the bottom.</span>' : `${canEnd ? `<button id="readBtn" ${LOCAL ? '' : 'disabled title="Only on the dashboard PC"'} title="Opens this listing's edit form on eBay and reads its values. Changes nothing.">Read from eBay</button>` : ''}<button id="editBtn" class="primary">Edit this car</button>`}
+      ${canEnd && !EDIT ? `<button class="danger" id="endBtn" ${LOCAL ? '' : 'disabled title="Only on the dashboard PC"'}>End Active Listing</button>` : ''}</div>`;
+  const pendBox = pend.length && !EDIT ? `<div class="pend">${st === 'Listed' ? '<b>Saved here but not on your live eBay listing yet:</b> ' : '<b>Changed here since the listing was made:</b> '}${pend.map(esc).join(', ')}. ${st === 'Listed' ? 'Saving never sends anything to eBay; sending is a separate step that shows you every change first.' : ''}
+      ${st === 'Listed' && ln ? ` <button id="applyBtn" class="primary" ${LOCAL ? '' : 'disabled title="Only on the dashboard PC"'}>Apply to eBay...</button>` : ''}</div>` : '';
+  const out = C.headers.filter(h => h && !USED_BY_FIELDS.has(h) && !OUT_EDIT.includes(h) && String(V[h] || '').trim());
+  const outEdit = OUT_EDIT.map(h => EDIT ? `<div class="f${h === 'Comps' || h === 'Needs Review' ? ' wide' : ''}"><label>${esc(h === 'Model' ? 'Name in the ' + 'Garage' + ' (Model)' : h)}</label>${h === 'Comps' || h === 'Needs Review'
+        ? `<textarea class="eb-in" data-o="${esc(h)}" rows="2">${esc(OUTV[h])}</textarea>` : `<input class="eb-in" data-o="${esc(h)}" value="${esc(OUTV[h])}">`}</div>`
+      : (String(V[h] || '').trim() ? ro(h === 'Model' ? 'Name in the ' + 'Garage' + ' (Model)' : h, /^eBay-Date/.test(h) ? sheetDate(V[h]) : V[h], h === 'Comps' || h === 'Needs Review') : '')).join('');
+  $('#eb').innerHTML = `
+    ${status}${pendBox}
+    <p class="eb-note" style="margin:0 0 8px">${S ? `Shown from: ${esc((C.saved.sources || ['saved settings']).join(' + '))}, plus its ${'Garage'} row.${C.live_at ? ' eBay was last read on ' + esc(C.live_at) + '.' : ''}` : `Shown from the ${'Garage'} row only: this listing was made before the dashboard, so its title, shipping and some specifics are not stored here. Press <b>Read from eBay</b> to pull them in (view only), or <b>Check eBay for ended listings</b> on the ${'Garage'} page to fetch every title.`} ${C.live_at ? 'Press Read from eBay again to refresh it.' : 'Nothing here has been read from eBay live.'}</p>
+    <div class="eb-board">
+      <div class="eb-card span2"><div class="eb-chead"><h2>PHOTOS</h2>${(C.shots || []).length ? `<span class="eb-note">${C.shots.length} in upload order; the first is the main photo</span>` : ''}</div>
+        <div class="eb-strip">${(C.shots || []).length ? C.shots.map(s => `<div class="eb-phw"><a class="eb-ph" href="/img?b=${encodeURIComponent(s.b)}&f=${encodeURIComponent(s.crop)}&v=${PV}" target="_blank" title="${esc(s.side)}: open full size"><img src="/img?b=${encodeURIComponent(s.b)}&f=${encodeURIComponent(s.prev)}&r=${s.rot || 0}&v=${PV}" alt="${esc(s.side)}"><span class="eb-badge">${esc(s.side)}</span></a>
+          <div class="eb-pha"><button type="button" title="Turn left" data-rot="${esc(s.id)}" data-deg="270" data-b="${esc(s.b)}">&#8634;</button><button type="button" title="Turn right" data-rot="${esc(s.id)}" data-deg="90" data-b="${esc(s.b)}">&#8635;</button>
+            <a class="btn eb-pa" href="/dashboard?batch=${encodeURIComponent(s.b)}&photo=${encodeURIComponent(s.id)}&act=crop" title="Adjust the crop on the dashboard">Crop</a>${s.role ? `<a class="btn eb-pa warn" href="/dashboard?batch=${encodeURIComponent(s.b)}&photo=${encodeURIComponent(s.id)}&act=retake&side=${encodeURIComponent(s.role)}" title="Retake this photo on the dashboard">Retake</a>` : ''}</div></div>`).join('')
+          : `${pic(C.front, 'Front')}${pic(C.back, 'Back')}`}</div>
+        ${(C.shots || []).length ? '' : `<p class="eb-note" style="margin:6px 0 0">Made before the dashboard kept the original photos, so it cannot be recropped or retaken here.</p>`}</div>
+      <div class="eb-card span2"><div class="eb-chead"><h2>TITLE</h2><span class="eb-note">Category: Contemporary Manufacture in Toys &amp; Hobbies &gt; Diecast &amp; Toy Vehicles &gt; Cars, Trucks &amp; Vans</span></div><div class="fgrid">${fld('title')}${isBlank(FIELDS.title) ? `<div class="f wide"><button type="button" id="sugBtn" title="Builds a title from this row's Brand, Year, Series and Model. You check it, then Save.">Suggest a title from this row</button> <span class="eb-note">No title yet. Cars made on the dashboard get one from research (Re-run research); older rows can use this.</span></div>` : ''}</div></div>
+      <div class="eb-card"><div class="eb-chead"><h2>ESSENTIAL</h2></div><div class="fgrid">${['brand', 'make', 'vtype', 'emodel', 'scale', 'material', 'color', 'series', 'year'].map(fld).join('')}</div></div>
+      <div class="eb-card"><div class="eb-chead"><h2>OPTIONAL</h2></div><div class="fgrid">${['theme', 'country', 'mpn', 'upc', 'vintage'].map(fld).join('')}${locked('Age Level / Gender / Features')}
+        ${(() => { const sp = (S && S.specifics) || {}, on = ['Age Level', 'Gender', 'Features', 'Recommended Age Range'].filter(k => String(sp[k] || '').trim()).map(k => k + ': ' + sp[k]);
+          return on.length ? `<div class="f wide"><div class="eb-tag warn">On eBay right now (we never fill these): ${esc(on.join(' | '))}</div></div>` : ''; })()}</div></div>
+      <div class="eb-card"><div class="eb-chead"><h2>CONDITION &amp; DESCRIPTION</h2></div><div class="fgrid">${['econd'].map(fld).join('')}${condWording()}${['cdesc', 'desc'].map(fld).join('')}</div></div>
+      <div style="display:grid;gap:12px;min-width:0">
+        <div class="eb-card"><div class="eb-chead"><h2>PRICING</h2><span class="eb-note">Buy It Now</span></div><div class="fgrid">${['price', 'offers', 'accept'].map(fld).join('')}</div></div>
+        <div class="eb-card"><div class="eb-chead"><h2>SHIPPING</h2><span class="eb-note">${(S && S.ship) || EDIT ? '' : 'Not stored for this listing: type it in Edit mode.'}</span></div><div class="fgrid">${['lb', 'oz', 'sl', 'sw', 'sh'].map(fld).join('')}</div></div>
+      </div>
+      <div class="eb-card span2 eb-out"><div class="eb-chead"><h2>NOT ON EBAY</h2><span class="eb-note">Our own records. None of this is sent to eBay.</span></div>
+        ${(C.research || []).length ? `<div class="chk good" style="margin:0 0 10px"><b>Where this info came from</b> (the research notes from when this car was added)<ul>${C.research.map(e => `<li>${esc(e)}</li>`).join('')}</ul></div>` : ''}
+        <div class="fgrid">${fld('gcond')}${outEdit}${out.map(h => ro(h, /^eBay-Date/.test(h) ? sheetDate(V[h]) : V[h])).join('')}</div></div>
+    </div>`;
+  wire(); bar();
+}
+function wire() {
+  const b = $('#endBtn'); if (b && LOCAL) b.onclick = endFlow;
+  const ap = $('#applyBtn'); if (ap && LOCAL) ap.onclick = applyFlow;
+  const rb = $('#readBtn'); if (rb && LOCAL) rb.onclick = readFlow;
+  const e = $('#editBtn'); if (e) e.onclick = () => { initFields(); EDIT = true; say('', ''); draw(); };
+  document.querySelectorAll('[data-f]').forEach(el => {
+    const f = F.find(x => x.id === el.dataset.f);
+    el.oninput = el.onchange = ev => {
+      FIELDS[f.id] = el.type === 'checkbox' ? el.checked : el.value;
+      if (el.dataset.need) el.classList.toggle('need', isBlank(el.value));
+      if (ev.type === 'change') {
+        if (f.opts) { const a = ebAlign(f.opts, el.value); if (a.st === 'snap') FIELDS[f.id] = a.to; }
+        if (f.id === 'price') { const p = dig(FIELDS.price); if (p !== null && (!String(FIELDS.accept).trim() || dig(FIELDS.accept) === Math.floor(dig(ORIG.price) * 90) / 100)) FIELDS.accept = (Math.floor(p * 90) / 100).toFixed(2); }
+        if (f.id === 'econd' || f.opts || f.id === 'price') { keepFocus(); draw(); } else bar();
+      } else bar();
+    };
+  });
+  document.querySelectorAll('button[data-rot]').forEach(bt => bt.onclick = async () => {   // turn a photo: the car's batch comes up first, then the same call the dashboard uses
+    bt.disabled = true;
+    let k = await post('/api/open_batch', {id: bt.dataset.b});
+    if (k.ok !== false) k = await post('/api/rotate_photo', {photo: bt.dataset.rot, deg: +bt.dataset.deg});
+    if (k.ok === false) { say('Could not turn the photo: ' + (k.error || 'unknown problem'), 'err'); bt.disabled = false; return; }
+    PV = Date.now();
+    const j = await fetch('/api/car?row=' + encodeURIComponent(ROW)).then(r => r.json()).catch(() => null);
+    if (j && j.ok) { C.shots = j.shots; draw(); }
+  });
+  const sg = $('#sugBtn');
+  if (sg) sg.onclick = async () => {
+    sg.disabled = true;
+    const j = await fetch('/api/suggest_title?row=' + encodeURIComponent(ROW)).then(r => r.json()).catch(e => ({ok: false, error: e.message}));
+    if (!j.ok) { say('Could not suggest a title: ' + (j.error || 'unknown problem'), 'err'); sg.disabled = false; return; }
+    if (!EDIT) { initFields(); EDIT = true; }
+    FIELDS.title = j.title; draw();
+    say(`Suggested from this row (${Object.entries(j.from).filter(([, v]) => v).map(([k, v]) => k + ' ' + v).join(', ')})${j.notes.length ? '; note: ' + j.notes.join(', ') : ''}. Check it, then press Save changes.`, 'ok');
+  };
+  const cs = $('#condSel'), ct = $('#condTxt');
+  if (cs) cs.onchange = () => {
+    const i = condInfo(), v = cs.value; CONDCUSTOM = v === 'custom';
+    if (v === 'default') condSet(i, i.def); else if (v === 'none') condSet(i, i.none); else if (v === '') condSet(i, '');
+    draw(); if (v === 'custom') { const t = $('#condTxt'); if (t) t.focus(); }
+  };
+  if (ct) ct.oninput = () => { condSet(condInfo(), ct.value); bar(); };
+  document.querySelectorAll('[data-o]').forEach(el => { el.oninput = () => { OUTV[el.dataset.o] = el.value; bar(); }; });
+  document.querySelectorAll('button[data-use]').forEach(bt => { bt.onclick = () => { FIELDS[bt.dataset.use] = bt.dataset.v; draw(); }; });
+}
+function keepFocus() {}
+function diff() {
+  const sheet = {}, listing = {}, names = [];
+  const pdesc = v => paras(v).filter(p => p !== COND_LINE);
+  F.forEach(f => {
+    let cur = FIELDS[f.id], was = ORIG[f.id];
+    if (f.kind === 'desc') { if (pdesc(cur).join('\n\n') === pdesc(was).join('\n\n')) return; sheet.Notes = pdesc(cur).join('\n\n'); setPath(listing, 'desc_text', pdesc(cur).concat([COND_LINE]).join('\n\n')); names.push(f.label); return; }
+    if (f.kind === 'bool') { if (!!cur === !!was) return; setPath(listing, 'offers', !!cur); names.push(f.label); return; }
+    if (String(cur ?? '').trim() === String(was ?? '').trim()) return;
+    (f.sheet || []).forEach(h => { sheet[h] = String(cur).trim(); });
+    (f.spec || []).forEach(p => setPath(listing, p, f.kind === 'money' ? (dig(cur) === null ? String(cur).trim() : dig(cur).toFixed(2)) : String(cur).trim()));
+    names.push(f.label);
+  });
+  OUT_EDIT.forEach(h => { if ((OUTV[h] ?? '') !== (OUT0[h] ?? '')) { sheet[h] = OUTV[h]; names.push(h); } });
+  return {sheet, listing, names};
+}
+function bar() {
+  const bar = $('#bar'); if (!EDIT) { bar.classList.remove('on'); return; }
+  const d = diff(); bar.classList.add('on'); $('#barTxt').textContent = d.names.length ? `${d.names.length} changed: ${d.names.slice(0, 6).join(', ')}${d.names.length > 6 ? '...' : ''}` : 'No changes yet';
+  $('#bSave').disabled = !d.names.length;
+}
+$('#bDiscard').onclick = () => { EDIT = false; draw(); };
+$('#bSave').onclick = async () => {
+  const d = diff(); if (!d.names.length) return;
+  const b = $('#bSave'); b.disabled = true; b.textContent = 'Saving...';
+  const j = await post('/api/car_save', {row: ROW, sheet: d.sheet, listing: d.listing});
+  b.textContent = 'Save changes';
+  if (!j.ok) { say('Not saved: ' + (j.error || 'unknown problem'), 'err'); bar(); return; }
+  EDIT = false; await load();
+  say(`Saved: ${j.changes.length} ${'Garage'} cell(s) (yellow in the sheet) and ${j.spec_changes.length} listing setting(s). Nothing was sent to eBay.`, 'ok');
+};
+
+// ---------------------------------------------------------------- talking to the dashboard
+function say(text, kind) { const m = $('#msg'); m.textContent = text; m.className = text ? kind : ''; }
+// Re-run research for a car made on the dashboard: its batch comes up, research starts (it only fills fields that are still empty), and this page follows it.
+let RERUN = false;
+async function rerunResearch() {
+  if (RERUN || !(C.saved && C.saved.batch)) return;
+  RERUN = true; const bt = $('#rerunBtn'); bt.disabled = true;
+  const car = String(C.saved.car);
+  let k = await post('/api/open_batch', {id: C.saved.batch});
+  if (k.ok !== false) k = await post('/api/auto_research', {car: +car});
+  if (k.ok === false) { say('Research did not start: ' + (k.error || 'unknown problem'), 'err'); RERUN = false; bt.disabled = false; return; }
+  say('Research started. It fills only empty fields and takes a few minutes...', 'ok');
+  for (let i = 0; i < 200; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    const S = await fetch('/api/state').then(r => r.json()).catch(() => null);
+    const c = S && S.batch && S.batch.id === C.saved.batch ? (S.batch.cars || {})[car] : null;
+    const rs = c ? String(c.research_state || '') : '';
+    if (rs === 'done') {
+      say('Research finished.' + (EDIT ? ' Save or discard your edits, then reload this page to see the new values.' : ''), 'ok');
+      RERUN = false; bt.disabled = false; if (!EDIT) await load(); return;
+    }
+    if (rs.startsWith('error') || rs === 'needs_login') { say(rs === 'needs_login' ? 'eBay wants a quick sign-in check: finish it in the eBay window, then press Re-run research again.' : 'Research stopped: ' + rs, 'err'); break; }
+    if (rs) say('Researching: ' + rs, 'ok');
+  }
+  RERUN = false; bt.disabled = false;
+}
+async function post(path, body) {
+  try { return await (await fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})).json(); }
+  catch (e) { return {ok: false, error: 'Could not reach the dashboard: ' + e.message}; }
+}
+async function endFlow() {
+  const b = $('#endBtn'); b.disabled = true; b.textContent = 'Checking eBay (about 30 seconds)...'; say('', '');
+  const j = await post('/api/end_preview', {row: ROW});
+  b.disabled = false; b.textContent = 'End Active Listing';
+  if (!j.ok) { say(j.error || 'eBay did not answer', 'err'); return; }
+  P = j;
+  $('#endBody').innerHTML = `<h2 style="margin:0 0 6px">End this listing?</h2>
+    <p class="eb-note" style="margin:0">eBay shows this listing as active right now. Ending it cannot be undone: it moves to Unsold, its item number stops selling, and watchers and pending offers are dropped.</p>
+    <div class="live"><div><b>${esc(j.live.title)}</b><div>${esc(j.live.price)} &nbsp;|&nbsp; eBay listing ${esc(j.item)}</div>
+      <div class="eb-note">${'Garage'} row ${j.row}, Item ID ${esc(j.item_id)}: ${esc(j.model)}</div></div></div>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0"><input type="checkbox" id="endOk" style="margin-top:4px"> <span>I understand this ends the listing on eBay now.</span></label>
+    <div style="display:flex;gap:10px;justify-content:flex-end"><button id="endCancel">Cancel</button><button class="danger" id="endGo" disabled>End Active Listing</button></div>`;
+  $('#endOk').onchange = e => { $('#endGo').disabled = !e.target.checked; };
+  $('#endCancel').onclick = () => $('#endDlg').close();
+  $('#endGo').onclick = endNow;
+  $('#endDlg').showModal();
+}
+async function endNow() {
+  const go = $('#endGo'); go.disabled = true; go.textContent = 'Ending on eBay (about 30 seconds)...'; $('#endCancel').disabled = true;
+  const k = await post('/api/end_listing', {row: ROW, item: P.item, title: P.live.title, price: P.live.price});
+  $('#endDlg').close();
+  if (!k.ok) { say('Not ended: ' + (k.error || 'unknown problem') + ' (nothing was changed unless eBay says otherwise; check Seller Hub if unsure).', 'err'); return; }
+  say(`Ended on eBay. The ${'Garage'} row now says: ${k.status}.`, 'ok');
+  await load();
+}
+// ---- Apply to eBay: change the LIVE listing in place (views, watchers and history stay). Preview first, then confirm.
+const keyName = k => k === 'title' ? 'Item title' : k === 'price' ? 'Item price' : k === 'accept' ? 'Auto-accept at' : k === 'offers' ? 'Allow offers'
+  : k === 'desc_text' ? 'Description' : k === 'condition_desc' ? 'Condition description' : k === 'upc' ? 'UPC' : k.startsWith('ship.') ? 'Shipping ' + k.slice(5)
+  : k.startsWith('specifics.') ? k.slice(10) : k;
+async function readFlow() {                                   // view only: nothing on eBay changes
+  const b = $('#readBtn'); b.disabled = true; b.textContent = 'Reading from eBay (about 30 seconds)...'; say('', '');
+  const j = await post('/api/read_ebay', {row: ROW});
+  if (!j.ok) { b.disabled = false; b.textContent = 'Read from eBay'; say('Could not read it: ' + (j.error || 'eBay did not answer'), 'err'); return; }
+  await load(); say(`Read from eBay: "${j.title}" and ${j.fields} item specifics. Nothing on eBay was changed.`, 'ok');
+}
+let AP = null;
+async function applyFlow() {
+  const b = $('#applyBtn'); b.disabled = true; b.textContent = 'Checking with eBay (about 30 seconds)...'; say('', '');
+  const j = await post('/api/apply_preview', {row: ROW});
+  b.disabled = false; b.textContent = 'Apply to eBay...';
+  if (!j.ok) { say('Not applied: ' + (j.error || 'eBay did not answer') + ' Nothing was sent.', 'err'); return; }
+  AP = j;
+  $('#applyBody').innerHTML = `<h2 style="margin:0 0 6px">Change your live eBay listing?</h2>
+    <p class="eb-note" style="margin:0">This edits the listing in place: its item number, views, watchers and history stay. eBay's own form just accepted these changes and nothing else moved (promotion settings included).</p>
+    <div class="live"><div><b>${esc(j.live.title)}</b><div>${esc(j.item)} &nbsp;|&nbsp; live price $${esc(j.live.price)}</div></div></div>
+    <table style="width:100%;border-collapse:collapse;font-size:14px"><tr style="text-align:left;color:var(--mute)"><th>Field</th><th>Now on eBay</th><th>Will become</th></tr>
+      ${j.plan.map(p => `<tr style="border-top:1px solid var(--line)"><td style="padding:6px 6px 6px 0">${esc(keyName(p.key))}</td><td style="padding:6px;overflow-wrap:anywhere">${esc(p.was)}</td><td style="padding:6px;overflow-wrap:anywhere"><b>${esc(String(p.wanted).slice(0, 200))}</b></td></tr>`).join('')}</table>
+    ${j.unsupported.length ? `<p class="eb-note">Not sent (this step cannot change them yet): ${j.unsupported.map(k => esc(keyName(k))).join(', ')}.</p>` : ''}
+    <label style="display:flex;gap:8px;align-items:flex-start;margin:12px 0"><input type="checkbox" id="apOk" style="margin-top:4px"> <span>Change my live eBay listing to this, now.</span></label>
+    <div style="display:flex;gap:10px;justify-content:flex-end"><button id="apCancel">Cancel</button><button class="primary" id="apGo" disabled>Apply to eBay</button></div>`;
+  $('#apOk').onchange = e => { $('#apGo').disabled = !e.target.checked; };
+  $('#apCancel').onclick = () => $('#applyDlg').close();
+  $('#apGo').onclick = applyNow;
+  $('#applyDlg').showModal();
+}
+async function applyNow() {
+  const go = $('#apGo'); go.disabled = true; go.textContent = 'Changing it on eBay (about a minute)...'; $('#apCancel').disabled = true;
+  const k = await post('/api/apply_to_ebay', {row: ROW, plan_id: AP.plan_id, title: AP.live.title});
+  $('#applyDlg').close();
+  if (!k.ok) { say('Not confirmed: ' + (k.error || 'unknown problem') + ' Check the listing on eBay before trying again.', 'err'); await load(); return; }
+  say(`Done: your live eBay listing was changed in place${k.now_title ? ' (it now reads: ' + k.now_title + ')' : ''}.`, 'ok');
+  await load();
+}
+async function load() {
+  const j = await fetch('/api/car?row=' + encodeURIComponent(ROW)).then(r => r.json()).catch(e => ({ok: false, error: e.message}));
+  if (!j.ok) { $('#eb').innerHTML = `<p class="eb-note">${esc(j.error || 'Could not load this row')}</p>`; return; }
+  C = j; initFields(); draw();
+}
+load();
+</script>
+</body>
+</html>

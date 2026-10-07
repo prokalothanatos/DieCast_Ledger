@@ -1,0 +1,66 @@
+/* Shared by the review screen (index.html) and the car page (car.html): eBay's draft form regrouped into compact cards with
+   two columns of fields, so there is little scrolling. Same sections and fields as eBay; no eBay branding. */
+.eb { max-width:1180px; margin:0 auto; padding:8px 2px 12px; font-family:"Segoe UI",system-ui,sans-serif; }
+.eb-board { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
+.eb-card { border:1px solid var(--line); border-radius:12px; padding:10px 14px 14px; background:var(--card); min-width:0; }
+.eb-card.span2, .span2 { grid-column:1 / -1; }
+.eb-chead { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.eb-chead h2 { font-size:13px; letter-spacing:.06em; margin:0; color:var(--ink); }
+.fgrid { display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; }
+.f { min-width:0; } .f.wide { grid-column:1 / -1; }
+.f > label { display:block; font-size:12.5px; color:var(--mute); margin:0 0 2px; } .eb-req { color:var(--red); }
+.eb-chead + .fgrid, .eb-chead + .f { margin-top:0; }
+/* the tap-to-open list for eBay's dropdown fields (ebay.js); on a touch screen the text must be 16px or iOS zooms the page when you tap a box */
+.eb-pop { position:fixed; z-index:2147483000; overflow:auto; -webkit-overflow-scrolling:touch; background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.28); padding:4px; }
+.eb-pop[hidden] { display:none; }
+.eb-opt { padding:9px 12px; border-radius:7px; font-size:15px; cursor:pointer; overflow-wrap:anywhere; } .eb-opt.on { background:var(--bluebg); color:var(--blue); font-weight:600; }
+@media (hover:hover) { .eb-opt:hover { background:var(--bluebg); } }
+.eb-opt-note { padding:8px 12px; font-size:12.5px; color:var(--mute); }
+input[data-ebc] { background-image:linear-gradient(45deg, transparent 50%, var(--mute) 50%), linear-gradient(135deg, var(--mute) 50%, transparent 50%); background-position:calc(100% - 17px) 55%, calc(100% - 12px) 55%; background-size:5px 5px; background-repeat:no-repeat; padding-right:28px; }
+@media (pointer:coarse) { .eb-in, select.eb-in, textarea.eb-in { font-size:16px; } .eb-opt { padding:12px 14px; } }
+/* "still to do" cues, same as the dashboard: a blank required field gets a red outline + red tint and a red "(fill in)"; an unchosen dropdown is amber */
+.eb-in.need { outline:2px solid var(--red); background:var(--redbg); }
+.eb-in.pick { outline:2px solid #e08a00; }
+.eb-needtxt { display:none; color:var(--red); font-weight:700; } .f:has(.eb-in.need) > label .eb-needtxt { display:inline; }
+.eb-ro.need { color:var(--red); background:var(--redbg); outline:2px solid var(--red); border-radius:6px; padding-left:8px; } .eb-ro.need .eb-note { color:var(--red); }
+.eb-in { width:100%; padding:6px 9px; border:1px solid #8b8b8b; border-radius:8px; background:var(--bg); color:var(--ink); font:inherit; font-size:14px; }
+.eb-in:disabled { opacity:.55; background:transparent; border-style:dashed; } textarea.eb-in { resize:vertical; }
+.eb-note { color:var(--mute); font-size:12.5px; margin-top:3px; }
+.eb-tag { font-size:12px; margin-top:2px; line-height:1.3; } .eb-tag.ok { color:var(--green); } .eb-tag.warn { color:var(--amber); }
+.eb-tag button { font-size:11.5px; padding:0 7px; margin-left:5px; }
+.eb-ro, .eb-static { display:block; padding:6px 0; overflow-wrap:anywhere; font-size:14px; border-bottom:1px solid var(--line); }
+.eb-inline { display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; } .eb-inline .eb-in { width:auto; }
+.eb-money { display:inline-flex; align-items:center; gap:6px; } .eb-money .eb-in { width:110px; }
+.eb-pills { display:inline-flex; gap:6px; } .eb-pills span { padding:4px 14px; border-radius:99px; border:1px solid transparent; background:var(--bg); color:var(--mute); font-size:13px; }
+.eb-pills span.on { border-color:var(--ink); color:var(--ink); font-weight:600; }
+.eb-strip { display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; }
+.eb-ph { position:relative; display:block; flex:none; width:72px; height:96px; background:var(--bg); border-radius:8px; overflow:hidden; border:1px solid var(--line); }
+.eb-strip > .eb-ph:first-child, .eb-strip > .eb-phw:first-child > .eb-ph { width:96px; height:128px; border-width:2px; border-color:var(--ink); }
+.eb-phw { flex:none; display:flex; flex-direction:column; gap:4px; align-items:flex-start; }
+.eb-phw:first-child .eb-pha { max-width:96px; } .eb-pha { display:flex; flex-wrap:wrap; gap:3px; max-width:80px; align-items:center; }
+.eb-pha button { font-size:12px; padding:1px 7px; border-radius:6px; line-height:1.5; } .eb-pha button.warn { color:var(--red); }
+.eb-phl { flex-basis:100%; font-size:11.5px; color:var(--mute); text-transform:capitalize; }.eb-ph img { width:100%; height:100%; object-fit:contain; background:#111; cursor:zoom-in; } .eb-ph.empty { border-style:dashed; }
+.eb-badge { position:absolute; left:5px; bottom:5px; background:rgba(0,0,0,.7); color:#fff; padding:1px 8px; border-radius:99px; font-size:11px; }
+.eb-flag { position:absolute; left:3px; top:3px; right:3px; background:var(--amber); color:#fff; padding:0 5px; border-radius:5px; font-size:10.5px; }
+.eb-pair { display:grid; grid-template-columns:1fr 1fr; gap:10px; } .eb-pair .prevbox { max-height:210px; overflow:auto; font-size:13.5px; margin:0; }
+.eb-sw { position:relative; display:inline-block; width:42px; height:24px; flex:none; } .eb-sw input { opacity:0; width:0; height:0; }
+.eb-sw i { position:absolute; inset:0; border-radius:99px; border:2px solid var(--ink); } .eb-sw i::after { content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:var(--ink); transition:.15s; }
+.eb-sw input:checked + i { background:var(--blue); border-color:var(--blue); } .eb-sw input:checked + i::after { left:20px; background:#fff; }
+.eb-offer { display:flex; align-items:center; gap:10px; justify-content:space-between; padding:6px 0; }
+.eb-kv { display:flex; justify-content:space-between; gap:10px; font-size:13.5px; } .eb-kv span { color:var(--mute); }
+.eb-locks { margin-top:8px; padding:7px 10px; border-radius:8px; background:var(--bg); color:var(--mute); font-size:12.5px; }
+.eb-dim { opacity:.85; } .eb-dim summary { cursor:pointer; font-weight:600; font-size:13px; } .eb-dim p { margin:6px 0; }
+.eb-actions { position:sticky; bottom:0; background:var(--card); padding:8px 0 4px; border-top:1px solid var(--line); z-index:3; }
+.eb-actions .chk { margin-top:6px; }
+.eb-status { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; padding:10px 14px; border-radius:12px; border:1px solid var(--line); background:var(--card); margin:4px 0 10px; }
+.eb-status .st { padding:3px 12px; border-radius:99px; font-weight:600; font-size:14px; }
+.eb-status .st.Listed { background:var(--grnbg); color:var(--green); } .eb-status .st.Inactive { background:var(--redbg); color:var(--red); }
+.eb-status .st.Draft, .eb-status .st.Notlisted { background:var(--bg); color:var(--mute); } .eb-status .st.Sold { background:var(--bluebg); color:var(--blue); }
+.eb-out { border:1px dashed var(--line); border-radius:12px; padding:8px 14px 14px; background:var(--bg); }
+.eb-out .fgrid { grid-template-columns:repeat(3, 1fr); }
+@media (max-width:900px) { .eb-board { grid-template-columns:1fr; } .eb-out .fgrid { grid-template-columns:1fr 1fr; } }
+@media (max-width:520px) { .fgrid, .eb-pair, .eb-out .fgrid { grid-template-columns:1fr; } }
+.eb-bar { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; } .eb-bar #revBtns { margin:0; flex:none; }
+.chkd summary { cursor:pointer; display:flex; gap:12px; align-items:center; font-size:13.5px; padding:4px 0; }
+.chkd .chklist { max-height:24vh; overflow:auto; } .chkd .chk { margin-top:6px; padding:6px 10px; }
+.eb-actions #buildbox:empty { display:none; }

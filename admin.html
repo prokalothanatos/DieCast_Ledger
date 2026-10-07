@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script src="demo-shim.js"></script>
+<title>Admin - DieCast Ledger</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#c8102e">
+<link rel="icon" href="icon-192.png">
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --ink:#1c2230; --mute:#667085; --line:#dfe3ea; --blue:#1f6feb; --green:#1a7f37;
+          --amber:#b26a00; --red:#c62828; --redbg:#fdecec; --grnbg:#e8f6ec; --ambbg:#fff4e0; --accent:#c8102e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151b; --card:#1b2029; --ink:#e8ecf3; --mute:#98a2b3; --line:#2b3240; --blue:#5b9dff; --green:#4cc36f;
+            --amber:#f0a840; --red:#ff7b72; --redbg:#3b1d1d; --grnbg:#173323; --ambbg:#3a2c12; --accent:#ff4d5e; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.45 "Segoe UI",system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:12px 16px; background:var(--card); border-bottom:1px solid var(--line); }
+  header h1 { font-size:18px; margin:0; flex:1; min-width:140px; }
+  header a { color:var(--mute); font-size:14px; text-decoration:none; }
+  main { max-width:980px; margin:0 auto; padding:16px; display:grid; gap:16px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; min-width:0; }
+  h2 { margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--mute); }
+  .row { display:grid; grid-template-columns:14px minmax(120px,190px) 1fr; gap:10px; align-items:start; padding:7px 0; border-top:1px solid var(--line); }
+  .row:first-of-type { border-top:0; }
+  .dot { width:11px; height:11px; border-radius:50%; margin-top:5px; background:var(--mute); }
+  .dot.on { background:var(--green); } .dot.off { background:var(--red); } .dot.warn { background:var(--amber); }
+  .row b { font-weight:600; } .row span { color:var(--mute); overflow-wrap:anywhere; }
+  .btns { display:flex; flex-wrap:wrap; gap:8px; }
+  button, a.btn { font:inherit; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink);
+                  cursor:pointer; text-decoration:none; display:inline-block; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .note { color:var(--mute); font-size:13px; margin:8px 0 0; }
+  #msg { padding:10px 14px; border-radius:8px; background:var(--grnbg); color:var(--green); display:none; }
+  #msg.err { background:var(--redbg); color:var(--red); }
+  pre { margin:0; max-height:300px; overflow:auto; font:12px/1.5 Consolas,monospace; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--mute); }
+  ul { margin:0; padding-left:18px; color:var(--mute); } li { overflow-wrap:anywhere; }
+  @media (max-width:600px) { .row { grid-template-columns:14px 1fr; } .row span { grid-column:2; } main { padding:12px; } section { padding:12px; } }
+  .bar { height:8px; background:var(--line); border-radius:99px; overflow:hidden; margin-top:6px; }
+  .bar i { display:block; height:100%; background:var(--blue); width:35%; animation:slide 1.4s ease-in-out infinite; }
+  @keyframes slide { 0% { margin-left:-35%; } 100% { margin-left:100%; } }
+</style>
+</head>
+<body>
+<header><h1>Admin</h1><a href="index.html">Home</a><a href="capture.html">New car</a><a href="sheet.html">Garage</a><a href="index.html" id="logout" hidden>Sign out</a></header>
+<main>
+  <div id="msg"></div>
+  <section><h2>Status</h2><div id="status">Loading...</div></section>
+  <section><h2>Backups</h2>
+    <div id="bk"></div>
+    <div class="btns" style="margin-top:10px">
+      <button class="primary" id="bFull">Back up now (everything)</button>
+      <button id="bQuick">Quick backup (no photos)</button>
+    </div>
+    <p class="note" id="bNote"></p>
+  </section>
+  <section><h2>Controls</h2>
+    <div class="btns">
+      <button id="bRecheck">Re-check everything</button>
+      <button id="bEbay">Open the eBay window</button>
+      <button id="bRestart">Restart the dashboard</button>
+      <a class="btn" href="index.html" id="aPin" hidden>Reset the network PIN</a>
+    </div>
+    <p class="note" id="cNote"></p>
+  </section>
+  <section><h2>Recent problems</h2><div id="problems"></div></section>
+  <section><h2>Activity log (last 30 lines)</h2><pre id="log"></pre></section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const LOCAL = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let A = null, fast = false;
+function row(cls, label, text) { return `<div class="row"><i class="dot ${cls}"></i><b>${esc(label)}</b><span>${esc(text)}</span></div>`; }
+const cls = ok => ok === true ? 'on' : ok === false ? 'off' : '';
+const dur = s => s < 90 ? s + ' s' : s < 5400 ? Math.round(s / 60) + ' min' : (s / 3600).toFixed(1) + ' h';
+function say(text, err) { const m = $('#msg'); m.textContent = text; m.className = err ? 'err' : ''; m.style.display = text ? 'block' : 'none'; }
+async function post(path, body) {
+  try { const j = await (await fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})})).json();
+        if (!j.ok) say(j.error || 'Failed', true); return j; }
+  catch (e) { say('Could not reach the dashboard: ' + e.message, true); return {ok: false}; }
+}
+function render() {
+  const n = A.network, live = (n.devices || []).filter(d => d.ago <= 15), w = A.work;
+  const rows = [
+    row('on', 'Dashboard', `running since ${A.started} (${dur(A.uptime)}); ${A.supervised ? 'watchdog on: it restarts itself if it stops' : 'no watchdog: it will not restart by itself'}`
+        + (A.restarts ? `; restarted ${A.restarts} time(s) in the last 24 hours, last ${A.last_restart}` : '')),
+    row(A.usb.connected ? 'on' : '', 'Phone (USB)', A.usb.connected ? A.usb.model + ' connected' : 'not plugged in' + (A.usb.note ? ': ' + A.usb.note : '')),
+    row(live.length ? 'on' : (n.devices || []).length ? 'warn' : '', 'Phone / tablet (Wi-Fi)',
+        n.enabled ? ((n.devices || []).length ? n.devices.map(d => `${d.device} ${d.ip}: ${d.ago <= 15 ? 'active' : 'last seen ' + dur(d.ago) + ' ago'}`).join('; ') : 'none seen yet') + ` (address ${n.url})`
+                  : 'network access is switched off in settings.json'),
+    row(cls(A.chrome.ok), 'Automation browser', A.chrome.msg),
+    row(cls(A.ebay.ok), 'eBay', A.ebay.msg),
+    row(cls(A.google.ok), 'Google (Sheets, Drive)', A.google.msg),
+    row(w.busy || w.builds || w.research ? 'warn' : 'on', 'Working on',
+        w.busy || (w.builds || w.research || w.sheet ? `${w.research} research, ${w.builds} eBay build, ${w.sheet} save in progress` : 'nothing right now') + (w.batch ? `; batch on screen: ${w.batch}` : '')),
+  ];
+  for (const [k, v] of Object.entries(A.disk)) rows.push(row(v && v.free_gb < 5 ? 'warn' : v ? 'on' : '', 'Disk: ' + k, v ? `${v.free_gb} GB free of ${v.total_gb} GB` : 'not available (plug in the drive)'));
+  $('#status').innerHTML = rows.join('');
+  const b = A.backup, lb = A.last_backup;
+  let h = '';
+  if (b.running) h = row('warn', 'Backup running', `${dur(b.elapsed)}: ${b.step || 'starting'}`) + '<div class="bar"><i></i></div><pre style="margin-top:8px">' + esc(b.lines.join('\n')) + '</pre>';
+  else if (lb) h = row(lb.ok ? 'on' : 'off', 'Last backup', `${lb.when}${lb.ok ? '' : ' FAILED'}${lb.note ? ' (' + lb.note + ')' : ''}${lb.folder ? ': ' + lb.folder : ''}`)
+       + (!lb.ok && lb.tail ? '<pre style="margin-top:6px">' + esc(lb.tail.join('\n')) + '</pre>' : '');
+  else h = row('warn', 'Last backup', 'none recorded yet');
+  h += row('', 'Backs up to', A.backup_dir + ' (change "backup_dir" in settings.json)');
+  $('#bk').innerHTML = h;
+  for (const id of ['#bFull', '#bQuick']) $(id).disabled = !LOCAL || b.running;
+  $('#bNote').textContent = LOCAL ? 'Everything = the project, a copy of the Garage, and every photo from Drive. Quick skips the photos and takes a minute or two.'
+                                  : 'Backups and the controls below only work on the dashboard PC itself.';
+  $('#bRestart').disabled = !LOCAL; $('#bEbay').disabled = !LOCAL;
+  $('#cNote').textContent = LOCAL ? 'Restart brings the dashboard back in a few seconds (this page reloads by itself). The batch on screen is reopened.' : '';
+  $('#problems').innerHTML = A.problems.length ? '<ul>' + A.problems.map(p => `<li>${esc(p)}</li>`).join('') + '</ul>' : '<span class="note">Nothing in the recent log.</span>';
+  const lg = $('#log'), atEnd = lg.scrollTop + lg.clientHeight >= lg.scrollHeight - 20;
+  lg.textContent = A.log.join('\n'); if (atEnd) lg.scrollTop = lg.scrollHeight;
+  fast = b.running;
+}
+async function load(force) {
+  try { A = await (await fetch('/api/admin_status' + (force ? '?force=1' : ''))).json(); render(); }
+  catch (e) { $('#status').innerHTML = row('off', 'Dashboard', 'not reachable: ' + e.message + ' (it may be restarting)'); }
+}
+async function loop() { await load(); setTimeout(loop, fast ? 2000 : 5000); }
+$('#bFull').onclick = async () => { const j = await post('/api/admin_backup', {photos: true}); if (j.ok) { say('Backup started.'); load(); } };
+$('#bQuick').onclick = async () => { const j = await post('/api/admin_backup', {photos: false}); if (j.ok) { say('Quick backup started.'); load(); } };
+$('#bRecheck').onclick = async () => { say('Checking...'); await post('/api/admin_recheck'); await load(true); say('Checked.'); };
+$('#bEbay').onclick = async () => { const j = await post('/api/ebay_login'); if (j.ok) say('The eBay window is open on the PC.'); };
+$('#bRestart').onclick = async () => {
+  if (!confirm('Restart the dashboard now? Anything running (research, an eBay build, a backup) is stopped.')) return;
+  const j = await post('/api/admin_restart');
+  if (j.ok) { say('Restarting...'); setTimeout(() => location.reload(), 6000); }
+};
+if (LOCAL) $('#aPin').hidden = false; else $('#logout').hidden = false;
+loop();
+</script>
+</body>
+</html>

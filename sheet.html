@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script src="demo-shim.js"></script>
+<title>Garage - DieCast Ledger</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --ink:#1c2230; --mute:#667085; --line:#dfe3ea; --blue:#1f6feb; --green:#1a7f37;
+          --amber:#b26a00; --red:#c62828; --ambbg:#fff4e0; --redbg:#fdecec; --grnbg:#e8f6ec; --bluebg:#e8f0fe; --hover:#f0f4fb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151b; --card:#1b2029; --ink:#e8ecf3; --mute:#98a2b3; --line:#2b3240; --blue:#5b9dff; --green:#4cc36f;
+            --amber:#f0a840; --red:#ff7b72; --ambbg:#3a2c12; --redbg:#3b1d1d; --grnbg:#173323; --bluebg:#172640; --hover:#222a36; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.4 "Segoe UI",system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; gap:12px; padding:12px 20px; background:var(--card); border-bottom:1px solid var(--line);
+           position:sticky; top:0; z-index:5; flex-wrap:wrap; }
+  header h1 { font-size:18px; margin:0; }
+  header .grow { flex:1; }
+  button, a.btn { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--card); color:var(--ink); padding:6px 12px;
+                  border-radius:8px; text-decoration:none; display:inline-block; }
+  button.primary, a.primary { background:var(--blue); border-color:var(--blue); color:#fff; font-weight:600; }
+  input[type=search] { font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:6px 10px; width:280px; }
+  .bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:10px 20px; }
+  .chip { border:1px solid var(--line); border-radius:99px; padding:4px 12px; background:var(--card); cursor:pointer; font-size:13px; }
+  .chip.on { background:var(--blue); border-color:var(--blue); color:#fff; }
+  .chip b { font-weight:600; margin-left:4px; }
+  .totals { color:var(--mute); margin-left:auto; }
+  .totals b { color:var(--ink); }
+  .wrap { padding:0 20px 40px; overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  th, td { padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; white-space:nowrap; }
+  th { position:sticky; top:0; background:var(--card); font-size:12px; color:var(--mute); cursor:pointer; user-select:none; }
+  th.sorted { color:var(--blue); }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  td.wide { white-space:normal; min-width:200px; max-width:320px; }
+  tbody tr { cursor:pointer; }
+  tbody tr:hover { background:var(--hover); }
+  td.ph img { width:64px; height:48px; object-fit:contain; border-radius:4px; background:#000; display:block; }
+  td.ph .none { width:64px; height:48px; border:1px dashed var(--line); border-radius:4px; color:var(--mute); font-size:10px;
+                display:flex; align-items:center; justify-content:center; }
+  .st { font-size:12px; padding:1px 8px; border-radius:99px; white-space:nowrap; }
+  .st.Sold { background:var(--grnbg); color:var(--green); } .st.Listed { background:var(--bluebg); color:var(--blue); }
+  .st.Inactive { background:var(--redbg); color:var(--red); } .st.Draft { background:var(--ambbg); color:var(--amber); } .st.Not { background:var(--line); color:var(--mute); }
+  .rv { color:var(--amber); font-size:12px; }
+  #msg { padding:30px 20px; color:var(--mute); }
+  #msg.err { color:var(--red); }
+  /* detail panel */
+  #panel { position:fixed; top:0; right:0; bottom:0; width:min(560px,100vw); background:var(--card); border-left:1px solid var(--line);
+           box-shadow:-6px 0 18px rgba(0,0,0,.18); overflow:auto; z-index:10; display:none; }
+  #panel.open { display:block; }
+  #panel .top { display:flex; gap:8px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--card); }
+  #panel .top h2 { margin:0; font-size:17px; flex:1; }
+  #panel .body { padding:12px 16px 30px; }
+  .pics { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .pics img { width:100%; border-radius:8px; border:1px solid var(--line); background:#000; }
+  .pics a { display:block; }
+  dl { display:grid; grid-template-columns:170px 1fr; gap:4px 12px; margin:14px 0 0; }
+  dt { color:var(--mute); font-size:12px; padding-top:2px; }
+  dd { margin:0; white-space:pre-wrap; word-break:break-word; }
+  .hint { color:var(--mute); font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <a class="btn" href="index.html">&larr; Home</a> <a class="btn" href="capture.html">New car &rarr;</a>
+  <h1>Garage</h1>
+  <input type="search" id="q" placeholder="Search model, series, toy #, notes..." autocomplete="off">
+  <span class="grow"></span>
+  <span class="hint" id="loaded"></span>
+  <button id="checkEbay" title="Compare the rows marked listed with eBay: which ones you ended, which sold">Check eBay for ended listings</button>
+  <button id="refresh">Refresh</button>
+  <a class="btn primary" id="openSheet" hidden href="#" target="_blank" rel="noopener">Open in Google Sheets</a>
+</header>
+<div class="bar" id="chips"></div>
+<div id="chkBox" hidden style="margin:8px 16px;padding:12px 16px;border:1px solid var(--line);border-radius:10px;background:var(--card)"></div>
+<div id="msg">Loading the Garage...</div>
+<div class="wrap"><table id="tbl" hidden><thead></thead><tbody></tbody></table></div>
+<div id="panel"><div class="top"><h2 id="pTitle"></h2><a class="btn" id="pOpen" target="_blank" rel="noopener">Open row in Google Sheets</a>
+  <button onclick="closePanel()">Close</button></div><div class="body" id="pBody"></div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// table columns: [header in the Sheet (or a special key), label, kind]
+const COLS = [['@photo', 'Photo', 'ph'], ['Item ID', 'Item ID', 'num'], ['Model', 'Model', 'wide'], ['eBay Title', 'eBay title', 'wide'], ['Year', 'Year', 'num'],
+  ['Color', 'Color', ''], ['Series', 'Series', 'wide'], ['Series Number', 'Series #', ''], ['Toy Number', 'Toy #', ''],
+  ['Condition', 'Condition', ''], ['Quantity', 'Qty', 'num'], ['Estimated Value (USD)', 'Estimated', 'num'],
+  ['Market Value', 'Market', 'num'], ['Highest Sold Price', 'Highest sold', 'num'], ['eBay-List Price', 'List price', 'num'],
+  ['@status', 'Status', ''], ['Needs Review', 'Needs review', 'wide']];
+const FILTERS = ['All', 'Listed', 'Inactive', 'Draft', 'Not listed', 'Sold', 'Needs review'];
+let D = null, H = {}, filter = 'All', sortKey = 'Item ID', sortDir = 1;
+
+const cell = (r, h) => (H[h] === undefined ? '' : r.cells[H[h]] || '');
+const money = s => { const v = parseFloat(String(s).replace(/[^0-9.\-]/g, '')); return isNaN(v) ? null : v; };
+function sheetDate(s) {                       // Sheets serial numbers (e.g. 46244) -> 2026-08-08
+  s = String(s || '').trim();
+  if (/^\d{5}(\.\d+)?$/.test(s)) { const d = new Date(Date.UTC(1899, 11, 30) + Math.round(parseFloat(s) * 86400000)); return d.toISOString().slice(0, 10); }
+  return s;
+}
+function status(r) {
+  if (/^inactive/i.test(cell(r, 'eBay Status').trim())) return 'Inactive';
+  const sold = cell(r, 'eBay-Date Sold').trim(), listed = cell(r, 'eBay-Date Listed').trim();
+  if (sold || /\bsold\b/i.test(cell(r, 'Model'))) return 'Sold';
+  if (/^draft$/i.test(listed)) return 'Draft';
+  if (!listed || /^not listed$/i.test(listed)) return 'Not listed';
+  return 'Listed';
+}
+function value(r, key) {
+  if (key === '@status') return status(r);
+  if (key === '@photo') return r.front ? 1 : 0;
+  return cell(r, key);
+}
+function matches(r) {
+  const st = status(r);
+  if (filter === 'Needs review' ? !cell(r, 'Needs Review').trim() : filter !== 'All' && st !== filter) return false;
+  const q = $('#q').value.trim().toLowerCase();
+  return !q || q.split(/\s+/).every(w => r.cells.join(' \u0001 ').toLowerCase().includes(w));
+}
+function cmp(a, b) {
+  const va = value(a, sortKey), vb = value(b, sortKey), na = money(va), nb = money(vb);
+  const numeric = na !== null && nb !== null && !/[a-z]/i.test(String(va) + String(vb));
+  if (!String(va).trim() && String(vb).trim()) return 1;           // blanks always last
+  if (String(va).trim() && !String(vb).trim()) return -1;
+  return (numeric ? na - nb : String(va).localeCompare(String(vb), undefined, {numeric: true, sensitivity: 'base'})) * sortDir;
+}
+function drawChips() {
+  const counts = Object.fromEntries(FILTERS.map(f => [f, 0]));
+  D.rows.forEach(r => { counts.All++; counts[status(r)]++; if (cell(r, 'Needs Review').trim()) counts['Needs review']++; });
+  $('#chips').innerHTML = FILTERS.map(f => `<span class="chip ${f === filter ? 'on' : ''}" data-f="${f}">${f}<b>${counts[f]}</b></span>`).join('')
+    + '<span class="totals" id="totals"></span>';
+  $('#chips').querySelectorAll('.chip').forEach(c => c.onclick = () => { filter = c.dataset.f; draw(); });
+}
+function draw() {
+  drawChips();
+  const rows = D.rows.filter(matches).sort(cmp);
+  $('#tbl thead').innerHTML = '<tr>' + COLS.map(([k, l, kind]) =>
+    `<th class="${kind === 'num' ? 'num' : ''} ${k === sortKey ? 'sorted' : ''}" data-k="${esc(k)}">${esc(l)}${k === sortKey ? (sortDir > 0 ? ' &#9650;' : ' &#9660;') : ''}</th>`).join('') + '</tr>';
+  $('#tbl thead').querySelectorAll('th').forEach(th => th.onclick = () => {
+    if (sortKey === th.dataset.k) sortDir = -sortDir; else { sortKey = th.dataset.k; sortDir = 1; } draw(); });
+  $('#tbl tbody').innerHTML = rows.map(r => '<tr data-row="' + r.row + '">' + COLS.map(([k, l, kind]) => {
+    if (k === '@photo') return `<td class="ph">${r.front ? `<img loading="lazy" src="/sheet_img?id=${esc(r.front)}" alt="">` : '<div class="none">no photo</div>'}</td>`;
+    if (k === '@status') { const s = status(r); return `<td><span class="st ${s.split(' ')[0]}">${s}</span></td>`; }
+    if (k === 'Needs Review') { const v = cell(r, k); return `<td class="wide rv" title="${esc(v)}">${esc(v.length > 70 ? v.slice(0, 70) + '...' : v)}</td>`; }
+    const v = cell(r, k);
+    if (kind === 'num' && v.length > 14)                 // e.g. old comps text sitting in Market Value: keep the column narrow
+      return `<td class="num" title="${esc(v)}">${esc(v.slice(0, 12))}&hellip;</td>`;
+    return `<td class="${kind}">${esc(v)}</td>`;
+  }).join('') + '</tr>').join('');
+  $('#tbl tbody').querySelectorAll('tr').forEach(tr => tr.onclick = () => openPanel(+tr.dataset.row));
+  const est = rows.reduce((s, r) => s + (money(cell(r, 'Estimated Value (USD)')) || 0), 0);
+  const qty = rows.reduce((s, r) => s + (parseInt(cell(r, 'Quantity')) || 0), 0);
+  $('#totals').innerHTML = `Showing <b>${rows.length}</b> of ${D.rows.length} rows &nbsp;|&nbsp; Estimated value <b>$${est.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b>`;
+}
+function openPanel(rowNo) {
+  const r = D.rows.find(x => x.row === rowNo); if (!r) return;
+  $('#pTitle').textContent = `Row ${r.row}: ${cell(r, 'Model') || '(no model)'}`;
+  $('#pOpen').hidden = true;
+  const pic = (id, side) => id ? `<a href="data/photos/${esc(id)}.jpg" target="_blank" rel="noopener" title="Open ${side} in Drive">
+      <img src="/sheet_img?id=${esc(id)}&s=full" alt="${side}"></a><div class="hint">${side}</div>` : `<div class="hint">no ${side.toLowerCase()} photo</div>`;
+  const rows = D.headers.map((h, i) => {
+    if (!h) return '';
+    let v = r.cells[i] || '';
+    if (/^eBay-Date (Listed|Sold)$/.test(h)) v = sheetDate(v);
+    if (!String(v).trim() || /^Photo \(/.test(h)) return '';
+    return `<dt>${esc(h)}</dt><dd>${esc(v)}</dd>`;
+  }).join('');
+  $('#pBody').innerHTML = `<div class="pics"><div>${pic(r.front, 'Front')}</div><div>${pic(r.back, 'Back')}</div></div>
+    <div class="hint" style="margin-top:6px">Status: <span class="st ${status(r).split(' ')[0]}">${status(r)}</span> &nbsp; <a class="btn primary" href="/car?row=${r.row}">Open eBay preview</a> &nbsp; <span>Read-only here: edit in Google Sheets.</span></div>
+    <dl>${rows}</dl>`;
+  $('#panel').classList.add('open'); $('#panel').scrollTop = 0;
+}
+function closePanel() { $('#panel').classList.remove('open'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
+async function load(force) {
+  $('#msg').hidden = false; $('#msg').className = ''; $('#msg').textContent = force ? 'Refreshing...' : 'Loading the Garage...';
+  try {
+    const j = await fetch('/api/sheet' + (force ? '?force=1' : '')).then(r => r.json());
+    if (!j.ok) throw new Error(j.error);
+    D = j; H = Object.fromEntries(D.headers.map((h, i) => [h, i]).filter(([h]) => h));
+    $('#openSheet').href = D.sheet_url; $('#loaded').textContent = 'Loaded ' + D.loaded;
+    $('#msg').hidden = true; $('#tbl').hidden = false; draw();
+  } catch (e) { $('#msg').className = 'err'; $('#msg').textContent = 'Could not read the Garage: ' + e.message; }
+}
+let qt = null;
+$('#q').oninput = () => { clearTimeout(qt); qt = setTimeout(draw, 150); };
+$('#refresh').onclick = () => load(true);
+// ---- compare with eBay: rows marked listed whose listing has ended (you ended it on eBay) or sold
+const LOCAL = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
+let CK = null;
+async function post(path, body) {
+  try { return await (await fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})})).json(); }
+  catch (e) { return {ok: false, error: 'Could not reach the dashboard: ' + e.message}; }
+}
+function ckLine(x) { return `<li><a href="/car?row=${x.row}">row ${x.row}</a>: ${esc(x.model)} (Item ID ${esc(x.item_id)}, eBay <a href="https://www.ebay.com/itm/${esc(x.item)}" target="_blank" rel="noopener">${esc(x.item)}</a>)${x.ended_on ? ' ended ' + esc(x.ended_on) : ''}${x.note ? ' <span class="hint">' + esc(x.note) + '</span>' : ''}</li>`; }
+$('#checkEbay').onclick = async () => {
+  const b = $('#checkEbay'), box = $('#chkBox'); b.disabled = true; b.textContent = 'Checking eBay (about a minute)...';
+  box.hidden = false; box.innerHTML = 'Reading your eBay Active list and the rows marked listed...';
+  const j = await post('/api/check_ebay'); b.disabled = false; b.textContent = 'Check eBay for ended listings';
+  if (!j.ok) { box.innerHTML = `<b style="color:var(--red)">${esc(j.error || 'The check failed')}</b>`; return; }
+  CK = j;
+  box.innerHTML = `<b>Checked ${j.checked} rows marked listed:</b> ${j.active} still active, ${j.ended.length} ended, ${j.sold.length} sold${j.unknown.length ? ', ' + j.unknown.length + ' not clear' : ''}.
+    ${j.ended.length ? `<div style="margin-top:8px"><b>Ended on eBay (you ended these):</b><ul>${j.ended.map(ckLine).join('')}</ul>
+      ${LOCAL ? '<button class="btn primary" id="markIn">Mark these rows Inactive</button> <span class="hint">adds an "eBay Status" column to the sheet the first time</span>' : '<span class="hint">Marking rows only works on the dashboard PC.</span>'}</div>` : ''}
+    ${j.sold.length ? `<div style="margin-top:8px"><b>Sold (record these in the Sales Tracker, not marked Inactive):</b><ul>${j.sold.map(ckLine).join('')}</ul></div>` : ''}
+    ${j.unknown.length ? `<div style="margin-top:8px"><b>Could not tell:</b><ul>${j.unknown.map(ckLine).join('')}</ul></div>` : ''}
+    ${!j.ended.length && !j.sold.length && !j.unknown.length ? '<div class="hint" style="margin-top:6px">Nothing to update: every listed row is still active on eBay.</div>' : ''}
+    <div style="margin-top:8px"><button class="btn" onclick="document.getElementById('chkBox').hidden = true">Close</button></div>`;
+  const mi = $('#markIn');
+  if (mi) mi.onclick = async () => {
+    mi.disabled = true; mi.textContent = 'Checking each one again, then marking...';
+    const k = await post('/api/apply_inactive', {rows: CK.ended.map(x => ({row: x.row, item: x.item}))});
+    if (!k.ok) { box.insertAdjacentHTML('beforeend', `<div style="color:var(--red);margin-top:8px">${esc(k.error)}</div>`); mi.disabled = false; mi.textContent = 'Mark these rows Inactive'; return; }
+    box.innerHTML = `<b>Marked Inactive: ${k.done.length}</b>${k.done.map(d => `<div>row ${d.row}: ${esc(d.status)}</div>`).join('')}${k.skipped.length ? `<div class="hint">Skipped (eBay did not report them as ended): ${k.skipped.map(s => 'row ' + s.row + ' (' + s.why + ')').join(', ')}</div>` : ''}
+      <div style="margin-top:8px"><button class="btn" onclick="document.getElementById('chkBox').hidden = true">Close</button></div>`;
+    load(true);
+  };
+};
+load(false);
+</script>
+</body>
+</html>
