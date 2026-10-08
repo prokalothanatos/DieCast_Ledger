@@ -146,6 +146,8 @@ let ghTimer = null;
 async function ghLoad() {
   let g; try { g = await (await fetch('/api/github_status')).json(); } catch (e) { $('#gh').textContent = 'Could not check: ' + e.message; return; }
   if (!g.ok) { $('#gh').textContent = g.error || 'Could not check GitHub'; return; }
+  $('#gh').closest('section').hidden = g.enabled === false;                 // switched off in settings.json ("enable_github_export": false)
+  if (g.enabled === false) return;
   $('#gh').innerHTML = g.signed_in
     ? row('on', 'GitHub', `signed in as ${g.login}` + (g.since ? ` (since ${g.since})` : '')) + row(g.repo_exists ? 'on' : '', 'Photo repository', g.repo_exists ? `${g.repo} exists (public)` : `${g.repo} will be created on first use`)
     : row('', 'GitHub', 'not signed in' + (g.note ? ': ' + g.note : ''));

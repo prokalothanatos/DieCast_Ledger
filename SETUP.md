@@ -83,6 +83,8 @@ A Chrome window opens: sign in to your seller account normally. Your sign-in sta
 
 On any car's page press **Export listing file**. You get a small file that you upload yourself in Seller Hub. It can only create a **draft**: it never publishes.
 
+*(Not using this route? Put `"enable_github_export": false` in `dashboard\settings.json` and the Export button and the GitHub card disappear.)*
+
 **Photos.** eBay's file upload needs your photos as public web links. The easy way is your own GitHub:
 
 1. On the **Admin** page, press **Sign in with GitHub**. A short code appears. Open the page it shows, type the code, and press Authorize. (The app asks only to write to your public repositories. Your password never goes through the app. You can revoke it any time at github.com/settings/applications.)

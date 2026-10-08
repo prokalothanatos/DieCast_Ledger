@@ -77,7 +77,7 @@
       }
       case 'car': { const c = car(row); return c ? J(c) : ERR('This demo has three sample cars only.'); }
       case 'ebay_options': return J(DATA.options);
-      case 'github_status': return J({signed_in: false, repo: 'diecast-ledger-photos', note: 'demo: sign-in works in the real app'});
+      case 'github_status': return J({enabled: true, signed_in: false, repo: 'diecast-ledger-photos', note: 'demo: sign-in works in the real app'});
       case 'admin_status': return J(adminStatus());
       case 'state': {
         const rs = st.research ? (Date.now() - st.research < 3500 ? 'Searching the Hot Wheels Wiki' : Date.now() - st.research < 7000 ? 'Asking Google Lens and eBay sold listings' : 'done') : 'done';

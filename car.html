@@ -202,7 +202,7 @@ function draw() {
       ${V['eBay-Date Listed'] && st !== 'Not listed' ? `<span class="eb-note">listed ${esc(sheetDate(V['eBay-Date Listed']))}</span>` : ''}
       ${V['eBay Status'] ? `<span class="eb-note">${esc(V['eBay Status'])}</span>` : ''}
       <span style="flex:1"></span>
-      ${EDIT ? '<span class="eb-note">Editing: change the fields, then Save at the bottom.</span>' : `${canEnd ? `<button id="readBtn" ${LOCAL ? '' : 'disabled title="Only on the dashboard PC"'} title="Opens this listing's edit form on eBay and reads its values. Changes nothing.">Read from eBay</button>` : ''}<button id="exportBtn" title="Makes a file you upload in Seller Hub to create an eBay draft (never publishes)">Export listing file</button><button id="editBtn" class="primary">Edit this car</button>`}
+      ${EDIT ? '<span class="eb-note">Editing: change the fields, then Save at the bottom.</span>' : `${canEnd ? `<button id="readBtn" ${LOCAL ? '' : 'disabled title="Only on the dashboard PC"'} title="Opens this listing's edit form on eBay and reads its values. Changes nothing.">Read from eBay</button>` : ''}${GH_ON ? '<button id="exportBtn" title="Makes a file you upload in Seller Hub to create an eBay draft (never publishes)">Export listing file</button>' : ''}<button id="editBtn" class="primary">Edit this car</button>`}
       ${canEnd && !EDIT ? `<button class="danger" id="endBtn" ${LOCAL ? '' : 'disabled title="Only on the dashboard PC"'}>End Active Listing</button>` : ''}</div>`;
   const pendBox = pend.length && !EDIT ? `<div class="pend">${st === 'Listed' ? '<b>Saved here but not on your live eBay listing yet:</b> ' : '<b>Changed here since the listing was made:</b> '}${pend.map(esc).join(', ')}. ${st === 'Listed' ? 'Saving never sends anything to eBay; sending is a separate step that shows you every change first.' : ''}
       ${st === 'Listed' && ln ? ` <button id="applyBtn" class="primary" ${LOCAL ? '' : 'disabled title="Only on the dashboard PC"'}>Apply to eBay...</button>` : ''}</div>` : '';
@@ -447,7 +447,9 @@ async function exportFlow() {
   };
   $('#exportDlg').showModal();
 }
+let GH_ON = false;                                     // the Export button shows only when the export/GitHub features are switched on (settings.json "enable_github_export")
 async function load() {
+  try { const g = await fetch('/api/github_status').then(r => r.json()); GH_ON = !!(g && g.ok && g.enabled); } catch (e) { GH_ON = false; }
   const j = await fetch('/api/car?row=' + encodeURIComponent(ROW)).then(r => r.json()).catch(e => ({ok: false, error: e.message}));
   if (!j.ok) { $('#eb').innerHTML = `<p class="eb-note">${esc(j.error || 'Could not load this row')}</p>`; return; }
   C = j; initFields(); draw();
