@@ -77,6 +77,7 @@
       }
       case 'car': { const c = car(row); return c ? J(c) : ERR('This demo has three sample cars only.'); }
       case 'ebay_options': return J(DATA.options);
+      case 'github_status': return J({signed_in: false, repo: 'diecast-ledger-photos', note: 'demo: sign-in works in the real app'});
       case 'admin_status': return J(adminStatus());
       case 'state': {
         const rs = st.research ? (Date.now() - st.research < 3500 ? 'Searching the Hot Wheels Wiki' : Date.now() - st.research < 7000 ? 'Asking Google Lens and eBay sold listings' : 'done') : 'done';
@@ -129,6 +130,24 @@
       case 'apply_to_ebay': {
         const c = car(row); const e = st.edits[row] = st.edits[row] || {values: {}, spec: {}, pend: []}; e.pend = []; e.applied = true; saveSt(st);
         return J({now_title: (c && c.values['eBay Title'] || '') + '  [demo: nothing was really sent]'});
+      }
+      case 'export_listing': {                                       // the draft file, built here from the sample car (photos are never hosted in the demo)
+        const c = car(row); if (!c) return ERR('No such sample car');
+        const v = c.values, sp = (c.saved && c.saved.spec) || {}, q = s => '"' + String(s).replace(/"/g, '""') + '"';
+        const title = String(sp.title || v['eBay Title'] || ''), price = String(sp.price || v['eBay-List Price'] || '').replace(/[^0-9.]/g, '');
+        if (!title) return ERR('This car has no title yet: use Suggest a title (or fill it in) first.');
+        if (title.length > 80) return ERR('The title is ' + title.length + ' characters; eBay allows 80. Shorten it first.');
+        if (!price) return ERR('This car has no price yet: set the Item price first.');
+        const used = String(sp.ebay_condition || (/^loose/i.test(v.Condition || '') ? 'Used' : 'New')).toLowerCase() === 'used';
+        const upc = String(sp.upc || v['UPC/Barcode'] || '').replace(/\s+/g, ''), okUpc = /^\d{8,14}$/.test(upc) ? upc : '';
+        const esc2 = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const desc = String(sp.desc_text || v.Notes || '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean).map(p => '<p>' + esc2(p) + '</p>').join('');
+        const head = ['#INFO,Version=0.0.2,Template= eBay-draft-listings-template_US,,,,,,,,', '#INFO Action and Category ID are required fields. 1) Set Action to Draft,,,,,,,,,,', '#INFO,,,,,,,,,,'];
+        const S = {Brand: v.Brand || 'Hot Wheels', Scale: v.Scale || '1:64', 'Vehicle Year': v.Year, Series: v.Series, 'Year of Manufacture': v.Year, Material: 'Diecast', Color: v.Color, Model: v.Model, MPN: v['Toy Number'], 'Country of Origin': v.Country};
+        const hdr = 'Action(SiteID=US|Country=US|Currency=USD|Version=1193|CC=UTF-8),Custom label (SKU),Category ID,Title,UPC,Price,Quantity,Item photo URL,Condition ID,Description,Format,' + Object.keys(S).map(k => 'C:' + k).join(',');
+        const rowv = ['Draft', v['Item ID'], '180506', q(title), okUpc, Number(price).toFixed(2), '1', '', used ? 'USED' : 'NEW', q(desc), 'FixedPrice'].concat(Object.values(S).map(x => q(x || ''))).join(',');
+        return J({csv: head.concat([hdr, rowv]).join('\r\n') + '\r\n', filename: 'eBay-draft-' + v['Item ID'] + '.csv', item: v['Item ID'], title, price: Number(price).toFixed(2), upc: okUpc, photo_urls: [], hosted: false,
+                  notes: ['Demo: photo links are left blank (hosting photos works in the real app).', 'Item specifics are included (check them in the draft).', 'Shipping, offers and returns are not in the file: set them in the draft.']});
       }
       case 'check_ebay': return J({checked: 1, active: 1, ended: [], sold: [], unknown: [], titles_saved: 1, titles_filled: 0});
       case 'apply_inactive': return J({done: [], skipped: []});

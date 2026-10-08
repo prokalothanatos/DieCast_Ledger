@@ -65,6 +65,15 @@
     </div>
     <p class="note" id="cNote"></p>
   </section>
+  <section><h2>Photo hosting on GitHub</h2>
+    <div id="gh">Checking...</div>
+    <div id="ghCode" style="display:none;margin:10px 0;padding:12px 14px;border-radius:10px;background:var(--grnbg);color:var(--green)"></div>
+    <div class="btns" style="margin-top:10px">
+      <button class="primary" id="bGhIn">Sign in with GitHub</button>
+      <button id="bGhOut" hidden>Sign out of GitHub</button>
+    </div>
+    <p class="note">eBay's file upload needs your photos as public web links. Signing in lets the app keep them in a public repository in <b>your own</b> GitHub account (no password goes through this app; the app asks GitHub for permission to write to your public repositories, and you can revoke that any time at github.com/settings/applications). Each car's photos can be removed again once eBay has fetched them.</p>
+  </section>
   <section><h2>Recent problems</h2><div id="problems"></div></section>
   <section><h2>Activity log (last 30 lines)</h2><pre id="log"></pre></section>
 </main>
@@ -132,6 +141,38 @@ $('#bRestart').onclick = async () => {
   if (j.ok) { say('Restarting...'); setTimeout(() => location.reload(), 6000); }
 };
 if (LOCAL) $('#aPin').hidden = false; else $('#logout').hidden = false;
+// ---- GitHub sign-in (device flow): the app shows a code, the person approves it at github.com/login/device
+let ghTimer = null;
+async function ghLoad() {
+  let g; try { g = await (await fetch('/api/github_status')).json(); } catch (e) { $('#gh').textContent = 'Could not check: ' + e.message; return; }
+  if (!g.ok) { $('#gh').textContent = g.error || 'Could not check GitHub'; return; }
+  $('#gh').innerHTML = g.signed_in
+    ? row('on', 'GitHub', `signed in as ${g.login}` + (g.since ? ` (since ${g.since})` : '')) + row(g.repo_exists ? 'on' : '', 'Photo repository', g.repo_exists ? `${g.repo} exists (public)` : `${g.repo} will be created on first use`)
+    : row('', 'GitHub', 'not signed in' + (g.note ? ': ' + g.note : ''));
+  $('#bGhIn').hidden = !!g.signed_in; $('#bGhOut').hidden = !g.signed_in;
+  $('#bGhIn').disabled = !LOCAL; $('#bGhOut').disabled = !LOCAL;
+}
+$('#bGhIn').onclick = async () => {
+  const j = await post('/api/github_login_start'); if (!j.ok) return;
+  const box = $('#ghCode'); box.style.display = 'block';
+  box.innerHTML = `<b>1.</b> Open <a href="${esc(j.verification_uri)}" target="_blank" rel="noopener" style="color:inherit"><b>${esc(j.verification_uri)}</b></a> &nbsp; <b>2.</b> Type this code: <b style="font:700 22px Consolas,monospace;letter-spacing:.12em">${esc(j.user_code)}</b> &nbsp; <b>3.</b> Press Authorize. This page notices by itself.`;
+  window.open(j.verification_uri, '_blank', 'noopener');
+  let wait = (j.interval || 5) * 1000; const stop = Date.now() + (j.expires_in || 900) * 1000;
+  clearTimeout(ghTimer);
+  const tick = async () => {
+    if (Date.now() > stop) { box.style.display = 'none'; say('The GitHub code expired: press Sign in again.', true); return; }
+    const k = await post('/api/github_login_poll', {device_code: j.device_code});
+    if (!k.ok) { box.style.display = 'none'; return; }
+    if (k.status === 'ok') { box.style.display = 'none'; say('Signed in to GitHub as ' + k.login + '.'); ghLoad(); return; }
+    if (k.status === 'denied') { box.style.display = 'none'; say('GitHub sign-in was cancelled.', true); return; }
+    if (k.status === 'expired') { box.style.display = 'none'; say('The GitHub code expired: press Sign in again.', true); return; }
+    if (k.status === 'slow_down') wait = (k.interval || 10) * 1000;
+    ghTimer = setTimeout(tick, wait);
+  };
+  ghTimer = setTimeout(tick, wait);
+};
+$('#bGhOut').onclick = async () => { const j = await post('/api/github_logout'); if (j.ok) { say('Signed out of GitHub on this PC. To revoke the permission at GitHub too, remove "DieCast Ledger" at github.com/settings/applications.'); ghLoad(); } };
+ghLoad();
 loop();
 </script>
 </body>

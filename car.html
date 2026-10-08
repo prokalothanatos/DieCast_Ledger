@@ -43,6 +43,7 @@
 <div id="bar"><span id="barTxt"></span><button id="bSave" class="primary">Save changes</button><button id="bDiscard">Discard</button></div>
 <dialog id="endDlg"><div id="endBody"></div></dialog>
 <dialog id="applyDlg"><div id="applyBody"></div></dialog>
+<dialog id="exportDlg"><div id="exportBody"></div></dialog>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -201,7 +202,7 @@ function draw() {
       ${V['eBay-Date Listed'] && st !== 'Not listed' ? `<span class="eb-note">listed ${esc(sheetDate(V['eBay-Date Listed']))}</span>` : ''}
       ${V['eBay Status'] ? `<span class="eb-note">${esc(V['eBay Status'])}</span>` : ''}
       <span style="flex:1"></span>
-      ${EDIT ? '<span class="eb-note">Editing: change the fields, then Save at the bottom.</span>' : `${canEnd ? `<button id="readBtn" ${LOCAL ? '' : 'disabled title="Only on the dashboard PC"'} title="Opens this listing's edit form on eBay and reads its values. Changes nothing.">Read from eBay</button>` : ''}<button id="editBtn" class="primary">Edit this car</button>`}
+      ${EDIT ? '<span class="eb-note">Editing: change the fields, then Save at the bottom.</span>' : `${canEnd ? `<button id="readBtn" ${LOCAL ? '' : 'disabled title="Only on the dashboard PC"'} title="Opens this listing's edit form on eBay and reads its values. Changes nothing.">Read from eBay</button>` : ''}<button id="exportBtn" title="Makes a file you upload in Seller Hub to create an eBay draft (never publishes)">Export listing file</button><button id="editBtn" class="primary">Edit this car</button>`}
       ${canEnd && !EDIT ? `<button class="danger" id="endBtn" ${LOCAL ? '' : 'disabled title="Only on the dashboard PC"'}>End Active Listing</button>` : ''}</div>`;
   const pendBox = pend.length && !EDIT ? `<div class="pend">${st === 'Listed' ? '<b>Saved here but not on your live eBay listing yet:</b> ' : '<b>Changed here since the listing was made:</b> '}${pend.map(esc).join(', ')}. ${st === 'Listed' ? 'Saving never sends anything to eBay; sending is a separate step that shows you every change first.' : ''}
       ${st === 'Listed' && ln ? ` <button id="applyBtn" class="primary" ${LOCAL ? '' : 'disabled title="Only on the dashboard PC"'}>Apply to eBay...</button>` : ''}</div>` : '';
@@ -240,6 +241,7 @@ function wire() {
   const ap = $('#applyBtn'); if (ap && LOCAL) ap.onclick = applyFlow;
   const rb = $('#readBtn'); if (rb && LOCAL) rb.onclick = readFlow;
   const e = $('#editBtn'); if (e) e.onclick = () => { initFields(); EDIT = true; say('', ''); draw(); };
+  const ex = $('#exportBtn'); if (ex) ex.onclick = exportFlow;
   document.querySelectorAll('[data-f]').forEach(el => {
     const f = F.find(x => x.id === el.dataset.f);
     el.oninput = el.onchange = ev => {
@@ -404,6 +406,46 @@ async function applyNow() {
   if (!k.ok) { say('Not confirmed: ' + (k.error || 'unknown problem') + ' Check the listing on eBay before trying again.', 'err'); await load(); return; }
   say(`Done: your live eBay listing was changed in place${k.now_title ? ' (it now reads: ' + k.now_title + ')' : ''}.`, 'ok');
   await load();
+}
+// ---- Export listing file: a one-row eBay "create drafts" file (Action = Draft only, so it can never publish). Photos can be hosted on the user's own GitHub.
+async function exportFlow() {
+  const g = await fetch('/api/github_status').then(r => r.json()).catch(() => ({}));
+  const signed = !!g.signed_in && LOCAL, spec = specOf() || {}, v = C.values;
+  const title = spec.title || v['eBay Title'] || '', price = spec.price || String(v['eBay-List Price'] || '').replace('$', '');
+  const n = (C.shots || []).length || (C.front && C.back ? 2 : 0);
+  $('#exportBody').innerHTML = `<h2 style="margin:0 0 6px">Export an eBay draft file</h2>
+    <p class="eb-note" style="margin:0">Makes a file you upload yourself in Seller Hub. It can only create a <b>draft</b>: it never publishes, and nothing is sent to eBay from here.</p>
+    <div class="live"><div><b>${esc(title) || '(no title yet)'}</b><div>${price ? '$' + esc(price) : 'no price yet'} &nbsp;|&nbsp; ${n} photo${n === 1 ? '' : 's'} &nbsp;|&nbsp; Item ID ${esc(v['Item ID'])}</div></div></div>
+    ${/^\d{12}$/.test(String(v['Listing Number'] || '').replace(/\D/g, '')) ? `<div class="pend" style="margin:8px 0"><b>This car already has an eBay listing (${esc(v['Listing Number'])}).</b> Uploading this file would create a second, separate draft of it. To change the live listing use <b>Edit this car</b> then <b>Apply to eBay</b>.</div>` : ''}
+    <p style="margin:8px 0 4px"><b>Photos</b> <span class="eb-note">(eBay needs public web links)</span></p>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0"><input type="radio" name="expPh" value="github" ${signed ? 'checked' : 'disabled'} style="margin-top:4px">
+      <span>Host them on my GitHub ${signed ? `<span class="eb-note">(signed in as ${esc(g.login)}; a public repository named ${esc(g.repo)})</span>` : '<span class="eb-note">(sign in with GitHub on the <a href="admin.html">Admin page</a> first; on the dashboard PC only)</span>'}</span></label>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0"><input type="radio" name="expPh" value="none" ${signed ? '' : 'checked'} style="margin-top:4px">
+      <span>Leave the photo links blank <span class="eb-note">(I will add the photos in Seller Hub after the upload)</span></span></label>
+    <div id="expOut"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px"><button id="expCancel">Close</button><button class="primary" id="expGo">Create the file</button></div>`;
+  $('#expCancel').onclick = () => $('#exportDlg').close();
+  $('#expGo').onclick = async () => {
+    const mode = (document.querySelector('input[name="expPh"]:checked') || {}).value || 'none', go = $('#expGo');
+    go.disabled = true; go.textContent = mode === 'github' ? 'Hosting photos and writing the file...' : 'Writing the file...';
+    const j = await post('/api/export_listing', {row: ROW, photos: mode});
+    go.disabled = false; go.textContent = 'Create the file again';
+    if (!j.ok) { $('#expOut').innerHTML = `<p style="color:var(--red);margin:8px 0">${esc(j.error || 'Could not make the file')}</p>`; return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([j.csv], {type: 'text/csv'})); a.download = j.filename; document.body.appendChild(a); a.click(); a.remove();
+    $('#expOut').innerHTML = `<div class="chk good" style="margin:10px 0 0"><b>Saved: ${esc(j.filename)}</b> (look in your Downloads folder)
+      <ol style="margin:6px 0 0;padding-left:20px"><li>In eBay open <b>Seller Hub &rarr; Reports &rarr; Uploads &rarr; Upload template</b> and choose this file. It starts at once and creates a <b>draft</b>.</li>
+      <li>Open <b>Listings &rarr; Drafts</b>, complete the item specifics (Brand, Series, Year...), review it, and publish it yourself.</li>
+      ${j.hosted ? '<li><b>Keep the photos on GitHub until the listing is live and showing its photos.</b> A draft only links to them. Then you can remove them with the button below.</li>' : '<li>Add the photos in the draft.</li>'}</ol></div>
+      <ul class="eb-note" style="margin:8px 0 0;padding-left:20px">${j.notes.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+      ${j.hosted ? `<p style="margin:10px 0 0"><button id="expRemove">Remove these photos from GitHub</button> <span class="eb-note">only after the listing is live</span></p>` : ''}`;
+    const rm = $('#expRemove');
+    if (rm) rm.onclick = async () => {
+      rm.disabled = true;
+      const k = await post('/api/github_remove_photos', {row: ROW});
+      rm.textContent = k.ok ? `Removed ${k.removed} photo(s) from GitHub` : 'Could not remove: ' + (k.error || 'unknown problem');
+    };
+  };
+  $('#exportDlg').showModal();
 }
 async function load() {
   const j = await fetch('/api/car?row=' + encodeURIComponent(ROW)).then(r => r.json()).catch(e => ({ok: false, error: e.message}));

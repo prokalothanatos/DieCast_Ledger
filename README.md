@@ -19,6 +19,10 @@ It runs entirely in your browser with three sample cars:
 
 To run the demo on your own computer, open a terminal in this folder and run `python -m http.server 8000`, then browse to http://localhost:8000.
 
+## Run your own copy
+
+A downloadable version is being finished. Its setup guide, with prerequisites and step-by-step instructions, is in [SETUP.md](SETUP.md): Python, Chrome, your own eBay and Google sign-ins, and an optional free GitHub account for photo links. No eBay developer account or API keys are needed.
+
 ## What the full app does (not included in this demo)
 - Takes photos from a phone (USB or Wi-Fi), crops and straightens them
 - Identifies the car with Google Lens, then checks the **Hot Wheels Wiki** for the casting name, year and series
