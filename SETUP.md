@@ -2,7 +2,7 @@
 
 DieCast Ledger helps a die-cast seller photograph a car or box set, let research identify and price it, review it on a page laid out like eBay's listing form, and send it to eBay as a **draft** you finish and publish yourself. It keeps your whole collection in one place (the *Garage*).
 
-> **Status of this guide.** It describes the copy you run on your own Windows PC. Two parts are still being finished and are marked **(coming)**: the Garage database that needs no Google account, and the one-file download package. Until then the Garage is stored in a Google Sheet (steps below).
+> **Status of this guide.** It describes the copy you run on your own Windows PC. The Garage can now be a **local database on your PC with no Google account** (section 3, recommended for a new copy), or your own Google Sheet. One part is still being finished and is marked **(coming)**: the one-file download package.
 > **Unofficial.** Not affiliated with or endorsed by Mattel, Hot Wheels, eBay, Google or GitHub. Hot Wheels is a trademark of Mattel, Inc.
 
 Want to look before you install? The **live demo** runs in your browser with three sample cars and sends nothing anywhere: <https://prokalothanatos.github.io/DieCast_Ledger/>
@@ -18,7 +18,7 @@ Want to look before you install? The **live demo** runs in your browser with thr
 | **Google Chrome** | The app opens its own Chrome window to read eBay pages and Google Lens | Installed the normal way |
 | An **eBay seller account** | To upload and publish your drafts | You sign in yourself in step 4 |
 | A **GitHub account** (free) | Hosts your photos for eBay's file upload (see section 6) | Only for the file-upload route; you can skip it and add photos in Seller Hub |
-| A **Google account** | Stores the Garage in a Google Sheet today **(coming: optional)** and Lens identifies cars | You create your own Google sign-in file once (section 3) |
+| A **Google account** | **Optional.** Only if you want the Garage in a Google Sheet instead of the local database | You create your own Google sign-in file once (section 3, option B) |
 | A phone or tablet camera | To photograph cars | Any phone or iPad on your Wi-Fi works; an Android phone on USB works too |
 
 You do **not** need an eBay developer account or any eBay keys.
@@ -38,11 +38,24 @@ You do **not** need an eBay developer account or any eBay keys.
 
 ---
 
-## 3. Connect Google (Garage and Lens)
+## 3. Choose where the Garage lives
 
-*(Coming: a local Garage database that needs no Google account. Lens will still use a normal Google page.)*
+The *Garage* is your collection: one row per car or box set, with its photos. Pick one:
 
-The Garage lives in your own Google Sheet, and photos go to your own Drive. The app signs in with a "Desktop app" sign-in file that **you** create once:
+### Option A: local database on your PC (recommended, no Google account)
+
+1. Create or edit `dashboard\settings.json` and put in it: `{"storage": "local"}` (keep any other settings that are already there).
+2. Start the app. It creates `garage_data\` in the app folder: `garage.db` (one SQLite file) and `photos\` (every car photo, full size).
+3. **Already have a Garage in a Google Sheet?** Copy it across once (this only reads from Google; nothing in your Sheet or Drive is changed):
+   ```
+   py -3 dashboard\store.py import
+   ```
+   The `--rows 71,178` option copies just those rows, and `--no-photos` skips the photo download.
+4. **Backups:** *Back up now* on the Admin page saves a consistent snapshot of `garage.db`, a CSV of the Garage and all the photos. Google Lens (used to identify cars) is just a web page in the app's own Chrome window and needs no account.
+
+### Option B: your own Google Sheet and Drive
+
+The Garage lives in your own Google Sheet, and photos go to your own Drive (`"storage": "google"`, the default). The app signs in with a "Desktop app" sign-in file that **you** create once:
 
 1. Go to <https://console.cloud.google.com/>, sign in, and create a project (any name).
 2. Turn on the **Google Sheets API** and **Google Drive API**.
@@ -117,9 +130,9 @@ The app can also build the whole draft itself by driving the eBay page in its ow
 
 | What | Where |
 |---|---|
-| Garage | Your Google Sheet **(coming: a file on your PC)** |
-| Photos | Your Google Drive, and your GitHub photo repository only while you need them |
-| Google sign-in | `credentials.json`, `token.json` in the app folder |
+| Garage | Option A: `garage_data\garage.db` on your PC. Option B: your Google Sheet |
+| Photos | Option A: `garage_data\photos\`. Option B: your Google Drive. (Your GitHub photo repository only while you need it, if you use the export file.) |
+| Google sign-in | Option B only: `credentials.json`, `token.json` in the app folder |
 | GitHub sign-in | `dashboard\github_token.json` (this PC only) |
 | eBay sign-in | the app's Chrome profile in `chrome_profile\` (this PC only) |
 | Network PIN | `dashboard\pin.json` (stored as a one-way hash) |
@@ -134,7 +147,7 @@ None of these should ever be uploaded, emailed or committed to a public reposito
 - **"Chrome not found":** install Google Chrome the normal way (the app looks in Program Files).
 - **eBay shows "verify" or a robot check:** finish it yourself in the app's Chrome window, then try again.
 - **Lens or eBay comps came back empty:** run **Re-run research** on the car page. Few sold listings means a rare car or a different name.
-- **Google asks you to sign in again:** normal while the consent screen is in "Testing" (section 3).
+- **Google asks you to sign in again** (option B only): normal while the consent screen is in "Testing" (section 3).
 - **GitHub sign-in asks you to confirm access:** that's GitHub's normal security check (sudo mode). Use your password or the GitHub Mobile prompt.
 - **A phone can't connect:** the phone must be on the same Wi-Fi; allow Python through the Windows firewall when asked.
 

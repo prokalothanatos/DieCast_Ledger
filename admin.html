@@ -102,7 +102,7 @@ function render() {
                   : 'network access is switched off in settings.json'),
     row(cls(A.chrome.ok), 'Automation browser', A.chrome.msg),
     row(cls(A.ebay.ok), 'eBay', A.ebay.msg),
-    row(cls(A.google.ok), 'Garage and photos', A.google.msg),
+    row(cls(A.google.ok), A.storage === 'local' ? 'Garage (local database)' : 'Garage and photos', A.google.msg),
     row(w.busy || w.builds || w.research ? 'warn' : 'on', 'Working on',
         w.busy || (w.builds || w.research || w.sheet ? `${w.research} research, ${w.builds} eBay build, ${w.sheet} save in progress` : 'nothing right now') + (w.batch ? `; batch on screen: ${w.batch}` : '')),
   ];

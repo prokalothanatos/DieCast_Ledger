@@ -19,6 +19,7 @@
   header .grow { flex:1; }
   button, a.btn { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--card); color:var(--ink); padding:6px 12px;
                   border-radius:8px; text-decoration:none; display:inline-block; }
+  [hidden] { display:none !important; }                    /* a.btn sets display, which would otherwise show hidden buttons */
   button.primary, a.primary { background:var(--blue); border-color:var(--blue); color:#fff; font-weight:600; }
   input[type=search] { font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:6px 10px; width:280px; }
   .bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:10px 20px; }
@@ -156,7 +157,8 @@ function openPanel(rowNo) {
   const r = D.rows.find(x => x.row === rowNo); if (!r) return;
   $('#pTitle').textContent = `Row ${r.row}: ${cell(r, 'Model') || '(no model)'}`;
   $('#pOpen').hidden = true;
-  const pic = (id, side) => id ? `<a href="data/photos/${esc(id)}.jpg" target="_blank" rel="noopener" title="Open the ${side} photo">
+  if (D.storage === 'local') $('#pOpen').hidden = true;                                   // a local Garage has no Google Sheet to open
+  const pic = (id, side) => id ? `<a href="${D.storage === 'local' ? '/sheet_img?id=' + esc(id) + '&s=full' : `data/photos/${esc(id)}.jpg`}" target="_blank" rel="noopener" title="Open the ${side} photo">
       <img src="/sheet_img?id=${esc(id)}&s=full" alt="${side}"></a><div class="hint">${side}</div>` : `<div class="hint">no ${side.toLowerCase()} photo</div>`;
   const rows = D.headers.map((h, i) => {
     if (!h) return '';
@@ -166,19 +168,22 @@ function openPanel(rowNo) {
     return `<dt>${esc(h)}</dt><dd>${esc(v)}</dd>`;
   }).join('');
   $('#pBody').innerHTML = `<div class="pics"><div>${pic(r.front, 'Front')}</div><div>${pic(r.back, 'Back')}</div></div>
-    <div class="hint" style="margin-top:6px">Status: <span class="st ${status(r).split(' ')[0]}">${status(r)}</span> &nbsp; <a class="btn primary" href="/car?row=${r.row}">Open eBay preview</a> &nbsp; <span>Read-only in the demo.</span></div>
+    <div class="hint" style="margin-top:6px">Status: <span class="st ${status(r).split(' ')[0]}">${status(r)}</span> &nbsp; <a class="btn primary" href="/car?row=${r.row}">Open eBay preview</a> &nbsp; <span class="ro">Read-only in the demo.</span></div>
     <dl>${rows}</dl>`;
+  if (D.storage === 'local') { const ro = $('#pBody .ro'); if (ro) ro.textContent = 'Read-only here: edit on the car page.'; }
   $('#panel').classList.add('open'); $('#panel').scrollTop = 0;
 }
 function closePanel() { $('#panel').classList.remove('open'); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
 async function load(force) {
-  $('#msg').hidden = false; $('#msg').className = ''; $('#msg').textContent = force ? 'Refreshing...' : 'Loading the Garage...';
+  $('#msg').hidden = false; $('#msg').className = ''; $('#msg').textContent = force ? (window.LOCAL_STORE ? 'Refreshing...' : 'Refreshing...') : 'Loading the Garage...';
   try {
     const j = await fetch('/api/sheet' + (force ? '?force=1' : '')).then(r => r.json());
     if (!j.ok) throw new Error(j.error);
     D = j; H = Object.fromEntries(D.headers.map((h, i) => [h, i]).filter(([h]) => h));
     $('#openSheet').href = D.sheet_url; $('#loaded').textContent = 'Loaded ' + D.loaded;
+    window.LOCAL_STORE = D.storage === 'local';
+    if (window.LOCAL_STORE) { $('#openSheet').hidden = true; $('#refresh').textContent = 'Refresh'; }      // no Google behind a local Garage
     $('#msg').hidden = true; $('#tbl').hidden = false; draw();
   } catch (e) { $('#msg').className = 'err'; $('#msg').textContent = 'Could not read the Garage: ' + e.message; }
 }
