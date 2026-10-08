@@ -70,13 +70,13 @@
   <span class="hint" id="loaded"></span>
   <button id="checkEbay" title="Compare the rows marked listed with eBay: which ones you ended, which sold">Check eBay for ended listings</button>
   <button id="refresh">Refresh</button>
-  <a class="btn primary" id="openSheet" hidden href="#" target="_blank" rel="noopener">Open in Google Sheets</a>
+  <a class="btn primary" id="openSheet" hidden href="#" target="_blank" rel="noopener">Open the Garage</a>
 </header>
 <div class="bar" id="chips"></div>
 <div id="chkBox" hidden style="margin:8px 16px;padding:12px 16px;border:1px solid var(--line);border-radius:10px;background:var(--card)"></div>
 <div id="msg">Loading the Garage...</div>
 <div class="wrap"><table id="tbl" hidden><thead></thead><tbody></tbody></table></div>
-<div id="panel"><div class="top"><h2 id="pTitle"></h2><a class="btn" id="pOpen" target="_blank" rel="noopener">Open row in Google Sheets</a>
+<div id="panel"><div class="top"><h2 id="pTitle"></h2><a class="btn" id="pOpen" target="_blank" rel="noopener">Open row in the Garage</a>
   <button onclick="closePanel()">Close</button></div><div class="body" id="pBody"></div></div>
 
 <script>
@@ -156,7 +156,7 @@ function openPanel(rowNo) {
   const r = D.rows.find(x => x.row === rowNo); if (!r) return;
   $('#pTitle').textContent = `Row ${r.row}: ${cell(r, 'Model') || '(no model)'}`;
   $('#pOpen').hidden = true;
-  const pic = (id, side) => id ? `<a href="data/photos/${esc(id)}.jpg" target="_blank" rel="noopener" title="Open ${side} in Drive">
+  const pic = (id, side) => id ? `<a href="data/photos/${esc(id)}.jpg" target="_blank" rel="noopener" title="Open the ${side} photo">
       <img src="/sheet_img?id=${esc(id)}&s=full" alt="${side}"></a><div class="hint">${side}</div>` : `<div class="hint">no ${side.toLowerCase()} photo</div>`;
   const rows = D.headers.map((h, i) => {
     if (!h) return '';
@@ -166,7 +166,7 @@ function openPanel(rowNo) {
     return `<dt>${esc(h)}</dt><dd>${esc(v)}</dd>`;
   }).join('');
   $('#pBody').innerHTML = `<div class="pics"><div>${pic(r.front, 'Front')}</div><div>${pic(r.back, 'Back')}</div></div>
-    <div class="hint" style="margin-top:6px">Status: <span class="st ${status(r).split(' ')[0]}">${status(r)}</span> &nbsp; <a class="btn primary" href="/car?row=${r.row}">Open eBay preview</a> &nbsp; <span>Read-only here: edit in Google Sheets.</span></div>
+    <div class="hint" style="margin-top:6px">Status: <span class="st ${status(r).split(' ')[0]}">${status(r)}</span> &nbsp; <a class="btn primary" href="/car?row=${r.row}">Open eBay preview</a> &nbsp; <span>Read-only in the demo.</span></div>
     <dl>${rows}</dl>`;
   $('#panel').classList.add('open'); $('#panel').scrollTop = 0;
 }

@@ -71,7 +71,7 @@ async function refresh() {
     if (A.usb.connected) c.push(chip('on', 'Phone (USB) connected'));
     if (live.length) c.push(chip('on', live[0].device + ' on Wi-Fi: active'));
     if (!A.usb.connected && !live.length) c.push(chip('', 'No phone connected'));
-    const g = A.google; c.push(chip(g.ok ? 'on' : g.ok === false ? 'off' : '', g.ok ? 'Google connected' : g.ok === false ? 'Google: needs attention' : 'Google: not set up'));
+    const g = A.google; c.push(chip(g.ok ? 'on' : g.ok === false ? 'off' : '', g.ok ? 'Garage connected' : g.ok === false ? 'Garage: needs attention' : 'Garage: not set up'));
     const e = A.ebay; c.push(chip(e.ok === false ? 'off' : e.ok ? 'on' : '', e.ok === false ? 'eBay: needs sign-in' : e.ok ? 'eBay working' : 'eBay: not used yet'));
     const lb = A.last_backup; c.push(chip(lb && lb.ok ? 'on' : '', lb ? 'Last backup ' + (lb.when || '').slice(0, 10) + (lb.ok ? '' : ' (failed)') : 'No backup yet'));
     $('#chips').innerHTML = c.join('');

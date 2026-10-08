@@ -21,6 +21,8 @@ To run the demo on your own computer, open a terminal in this folder and run `py
 
 ## Run your own copy
 
+The demo itself is self-contained: every page, sample car and photo is a file in this repository, and it needs no Google account, Google Drive or Sheets, GitHub sign-in or eBay login.
+
 A downloadable version is being finished. Its setup guide, with prerequisites and step-by-step instructions, is in [SETUP.md](SETUP.md): Python, Chrome, your own eBay and Google sign-ins, and an optional free GitHub account for photo links. No eBay developer account or API keys are needed.
 
 ## What the full app does (not included in this demo)
