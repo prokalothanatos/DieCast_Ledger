@@ -38,7 +38,7 @@
 </head>
 <body>
 <header><a class="btn" href="sheet.html">&larr; Garage</a><a class="btn" href="capture.html" title="The dashboard is for new cars and box sets">New car dashboard</a>
-  <h1 id="hTitle">Loading...</h1><button id="rerunBtn" hidden title="Looks the car up again (Lens, sold comps, UPC) and fills only fields that are still empty">Re-run research</button><a class="btn" id="aOpen" hidden>Open in the dashboard</a><a class="btn" id="aSheet" hidden target="_blank" rel="noopener">Row in the Garage</a></header>
+  <h1 id="hTitle">Loading...</h1><button id="rerunBtn" hidden title="Looks the car up again (Lens, sold comps, UPC) and fills only fields that are still empty">Re-run research</button><a class="btn" id="aOpen" hidden>Open in the dashboard</a></header>
 <main><div id="msg"></div><div class="eb" id="eb">Loading...</div></main>
 <div id="bar"><span id="barTxt"></span><button id="bSave" class="primary">Save changes</button><button id="bDiscard">Discard</button></div>
 <dialog id="endDlg"><div id="endBody"></div></dialog>
@@ -191,7 +191,7 @@ const locked = label => `<div class="f"><label>${esc(label)}</label><span class=
 function draw() {
   const V = C.values, S = specOf(), st = statusOf(V), ln = String(V['Listing Number'] || '').replace(/\D/g, '');
   $('#hTitle').textContent = `Row ${C.row}: ${V.Model || '(no model)'}`;
-  $('#aSheet').href = C.sheet_url; if (!C.sheet_url) $('#aSheet').hidden = true; document.title = `${V.Model || 'Car'} - DieCast Ledger`;
+  document.title = `${V.Model || 'Car'} - DieCast Ledger`;
   const ob = $('#aOpen'); if (C.saved && C.saved.batch) { ob.hidden = false; ob.href = '/dashboard?batch=' + encodeURIComponent(C.saved.batch); } else ob.hidden = true;
   const rr = $('#rerunBtn'); rr.hidden = !(C.saved && C.saved.batch && C.saved.car); rr.onclick = rerunResearch;
   const pic = (id, side) => id ? `<a class="eb-ph" href="/sheet_img?id=${esc(id)}&s=full" target="_blank" title="${side}: open full size"><img src="/sheet_img?id=${esc(id)}" alt="${side}"><span class="eb-badge">${side}</span></a>` : `<span class="eb-ph empty" title="no ${side.toLowerCase()} photo"></span>`;

@@ -71,13 +71,12 @@
   <span class="hint" id="loaded"></span>
   <button id="checkEbay" title="Compare the rows marked listed with eBay: which ones you ended, which sold">Check eBay for ended listings</button>
   <button id="refresh">Refresh</button>
-  <a class="btn primary" id="openSheet" hidden href="#" target="_blank" rel="noopener">Open the Garage</a>
 </header>
 <div class="bar" id="chips"></div>
 <div id="chkBox" hidden style="margin:8px 16px;padding:12px 16px;border:1px solid var(--line);border-radius:10px;background:var(--card)"></div>
 <div id="msg">Loading the Garage...</div>
 <div class="wrap"><table id="tbl" hidden><thead></thead><tbody></tbody></table></div>
-<div id="panel"><div class="top"><h2 id="pTitle"></h2><a class="btn" id="pOpen" target="_blank" rel="noopener">Open row in the Garage</a>
+<div id="panel"><div class="top"><h2 id="pTitle"></h2>
   <button onclick="closePanel()">Close</button></div><div class="body" id="pBody"></div></div>
 
 <script>
@@ -156,9 +155,7 @@ function draw() {
 function openPanel(rowNo) {
   const r = D.rows.find(x => x.row === rowNo); if (!r) return;
   $('#pTitle').textContent = `Row ${r.row}: ${cell(r, 'Model') || '(no model)'}`;
-  $('#pOpen').hidden = true;
-  if (D.storage === 'local') $('#pOpen').hidden = true;                                   // a local Garage has no Google Sheet to open
-  const pic = (id, side) => id ? `<a href="${D.storage === 'local' ? '/sheet_img?id=' + esc(id) + '&s=full' : `data/photos/${esc(id)}.jpg`}" target="_blank" rel="noopener" title="Open the ${side} photo">
+  const pic = (id, side) => id ? `<a href="/sheet_img?id=${esc(id)}&s=full" target="_blank" rel="noopener" title="Open the ${side} photo">
       <img src="/sheet_img?id=${esc(id)}&s=full" alt="${side}"></a><div class="hint">${side}</div>` : `<div class="hint">no ${side.toLowerCase()} photo</div>`;
   const rows = D.headers.map((h, i) => {
     if (!h) return '';
@@ -168,22 +165,19 @@ function openPanel(rowNo) {
     return `<dt>${esc(h)}</dt><dd>${esc(v)}</dd>`;
   }).join('');
   $('#pBody').innerHTML = `<div class="pics"><div>${pic(r.front, 'Front')}</div><div>${pic(r.back, 'Back')}</div></div>
-    <div class="hint" style="margin-top:6px">Status: <span class="st ${status(r).split(' ')[0]}">${status(r)}</span> &nbsp; <a class="btn primary" href="/car?row=${r.row}">Open eBay preview</a> &nbsp; <span class="ro">Read-only in the demo.</span></div>
+    <div class="hint" style="margin-top:6px">Status: <span class="st ${status(r).split(' ')[0]}">${status(r)}</span> &nbsp; <a class="btn primary" href="/car?row=${r.row}">Open eBay preview</a> &nbsp; <span class="ro">Read-only here: edit on the car page.</span></div>
     <dl>${rows}</dl>`;
-  if (D.storage === 'local') { const ro = $('#pBody .ro'); if (ro) ro.textContent = 'Read-only here: edit on the car page.'; }
   $('#panel').classList.add('open'); $('#panel').scrollTop = 0;
 }
 function closePanel() { $('#panel').classList.remove('open'); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
 async function load(force) {
-  $('#msg').hidden = false; $('#msg').className = ''; $('#msg').textContent = force ? (window.LOCAL_STORE ? 'Refreshing...' : 'Refreshing...') : 'Loading the Garage...';
+  $('#msg').hidden = false; $('#msg').className = ''; $('#msg').textContent = force ? 'Refreshing...' : 'Loading the Garage...';
   try {
     const j = await fetch('/api/sheet' + (force ? '?force=1' : '')).then(r => r.json());
     if (!j.ok) throw new Error(j.error);
     D = j; H = Object.fromEntries(D.headers.map((h, i) => [h, i]).filter(([h]) => h));
-    $('#openSheet').href = D.sheet_url; $('#loaded').textContent = 'Loaded ' + D.loaded;
-    window.LOCAL_STORE = D.storage === 'local';
-    if (window.LOCAL_STORE) { $('#openSheet').hidden = true; $('#refresh').textContent = 'Refresh'; }      // no Google behind a local Garage
+    $('#loaded').textContent = 'Loaded ' + D.loaded;
     $('#msg').hidden = true; $('#tbl').hidden = false; draw();
   } catch (e) { $('#msg').className = 'err'; $('#msg').textContent = 'Could not read the Garage: ' + e.message; }
 }

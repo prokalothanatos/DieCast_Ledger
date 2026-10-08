@@ -65,6 +65,12 @@
     </div>
     <p class="note" id="cNote"></p>
   </section>
+  <section id="zoomSec" hidden><h2>Phone camera zoom</h2>
+    <div class="btns"><label>Zoom <input id="zoomIn" type="text" list="zoomList" style="width:90px;font:inherit;padding:6px 8px"><datalist id="zoomList"><option value="auto"><option value="1"><option value="1.5"><option value="2"></datalist></label>
+      <label>Black mat around the card <input id="zoomMargin" type="number" min="3" max="20" step="1" style="width:70px;font:inherit;padding:6px 8px"> %</label>
+      <button class="primary" id="bZoom">Save zoom</button></div>
+    <p class="note">Used when the PC fires the USB phone's shutter. <b>auto</b> looks at the card first and zooms in as far as it can while still leaving that much black mat around the whole card (the percentage is of the picture's width and height, on each side), so the zoom adjusts to where you put the card. Or type a fixed zoom: 1 = normal, 2 = the Pixel's 2x, anything in between works (1.5, 1.7...). Zoom magnifies the middle of the frame, so with a fixed zoom the card must sit in the middle.</p>
+  </section>
   <section><h2>Photo hosting on GitHub</h2>
     <div id="gh">Checking...</div>
     <div id="ghCode" style="display:none;margin:10px 0;padding:12px 14px;border-radius:10px;background:var(--grnbg);color:var(--green)"></div>
@@ -102,7 +108,7 @@ function render() {
                   : 'network access is switched off in settings.json'),
     row(cls(A.chrome.ok), 'Automation browser', A.chrome.msg),
     row(cls(A.ebay.ok), 'eBay', A.ebay.msg),
-    row(cls(A.google.ok), A.storage === 'local' ? 'Garage (local database)' : 'Garage and photos', A.google.msg),
+    row(cls(A.garage.ok), 'Garage (local database)', A.garage.msg),
     row(w.busy || w.builds || w.research ? 'warn' : 'on', 'Working on',
         w.busy || (w.builds || w.research || w.sheet ? `${w.research} research, ${w.builds} eBay build, ${w.sheet} save in progress` : 'nothing right now') + (w.batch ? `; batch on screen: ${w.batch}` : '')),
   ];
@@ -117,7 +123,7 @@ function render() {
   h += row('', 'Backs up to', A.backup_dir + ' (change "backup_dir" in settings.json)');
   $('#bk').innerHTML = h;
   for (const id of ['#bFull', '#bQuick']) $(id).disabled = !LOCAL || b.running;
-  $('#bNote').textContent = LOCAL ? 'Everything = the project, a copy of the Garage, and every photo. Quick skips the photos and takes a minute or two.'
+  $('#bNote').textContent = LOCAL ? 'Everything = the project, a copy of the Garage (database, CSV, photos). Quick skips the photos and takes a minute or two.'
                                   : 'Backups and the controls below only work on the dashboard PC itself.';
   $('#bRestart').disabled = !LOCAL; $('#bEbay').disabled = !LOCAL;
   $('#cNote').textContent = LOCAL ? 'Restart brings the dashboard back in a few seconds (this page reloads by itself). The batch on screen is reopened.' : '';
@@ -141,6 +147,16 @@ $('#bRestart').onclick = async () => {
   if (j.ok) { say('Restarting...'); setTimeout(() => location.reload(), 6000); }
 };
 if (LOCAL) $('#aPin').hidden = false; else $('#logout').hidden = false;
+// ---- phone camera zoom (PC only)
+(async function () {
+  if (!LOCAL) return;
+  try {
+    const z = await (await fetch('/api/phone_zoom')).json();
+    if (!z.ok) return;
+    $('#zoomSec').hidden = false; $('#zoomIn').value = z.zoom; $('#zoomMargin').value = z.margin;
+  } catch (e) { return; }
+  $('#bZoom').onclick = async () => { const zv = $('#zoomIn').value.trim().toLowerCase(); const j = await post('/api/phone_zoom', {zoom: zv === 'auto' ? 'auto' : parseFloat(zv), margin: $('#zoomMargin').value}); if (j.ok) { $('#zoomIn').value = j.zoom; say('Camera zoom saved: ' + j.zoom + 'x. It is used from the next photo.'); } };
+})();
 // ---- GitHub sign-in (device flow): the app shows a code, the person approves it at github.com/login/device
 let ghTimer = null;
 async function ghLoad() {

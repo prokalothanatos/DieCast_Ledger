@@ -160,7 +160,7 @@
     const now = new Date();
     return {names: {db: 'Garage', app: 'DieCast Ledger'}, build: 'demo', pid: 0, uptime: 7380, started: now.toISOString().slice(0, 10) + ' 08:00', supervised: true, restarts: 0, last_restart: '',
       network: {enabled: true, url: 'http://192.168.1.20:8765 (demo)', devices: [{ip: '192.168.1.50', device: 'iPad (demo)', ago: 4}]}, usb: {connected: true, model: 'Pixel 7 (demo)', note: ''},
-      chrome: {ok: true, msg: 'running (demo)'}, ebay: {ok: true, msg: 'the last eBay step worked (demo)'}, google: {ok: true, msg: 'stored inside the demo, no Google account needed (demo)'},
+      chrome: {ok: true, msg: 'running (demo)'}, ebay: {ok: true, msg: 'the last eBay step worked (demo)'}, garage: {ok: true, msg: 'stored inside the demo, no Google account needed (demo)'},
       work: {busy: '', builds: 0, research: 0, sheet: 0, batch: 'demo-box'}, backup: {running: false, step: '', lines: [], elapsed: 0},
       last_backup: {ok: true, when: now.toISOString().slice(0, 10) + ' 07:30', folder: 'demo backup folder', note: 'sample'}, backup_dir: 'E:\\Backups (demo)',
       disk: {'This PC': {free_gb: 240, total_gb: 500}, 'Backup drive': {free_gb: 932, total_gb: 1024}}, problems: [],
